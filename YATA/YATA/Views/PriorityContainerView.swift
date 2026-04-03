@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PriorityContainerView: View {
     let priority: Priority
@@ -11,13 +12,12 @@ struct PriorityContainerView: View {
             addButton
 
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                // Show placeholder above this item if it's the drop target
-                if isDropTarget(at: index) {
-                    dropPlaceholder
-                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                // Thin insertion indicator above this item
+                if viewModel.dropTarget?.priority == priority
+                    && viewModel.dropTarget?.index == index {
+                    insertionIndicator
                 }
 
-                // Hide the item being dragged (it's shown as the drag preview)
                 TodoPillView(
                     item: item,
                     onMarkDone: { Task { await viewModel.markDone(item) } },
@@ -26,37 +26,28 @@ struct PriorityContainerView: View {
                     onDragStart: { viewModel.startDrag(itemID: item.id) }
                 )
                 .opacity(viewModel.draggingItemID == item.id ? 0.3 : 1)
-                .dropDestination(for: String.self) { ids, _ in
-                    handleItemDrop(ids, atIndex: index)
-                } isTargeted: { targeted in
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        if targeted {
-                            viewModel.dropTarget = .init(priority: priority, index: index)
-                        } else if isDropTarget(at: index) {
-                            viewModel.dropTarget = nil
-                        }
-                    }
-                }
             }
 
-            // Placeholder at the end of the list
-            if isDropTarget(at: items.count) {
-                dropPlaceholder
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            // Insertion indicator at the end
+            if viewModel.dropTarget?.priority == priority
+                && viewModel.dropTarget?.index == items.count {
+                insertionIndicator
             }
         }
         .padding(YATATheme.containerPadding)
         .containerStyle(color: YATATheme.backgroundColor(for: priority))
-        .dropDestination(for: String.self) { ids, _ in
-            // Drop on empty area = append at end
-            handleItemDrop(ids, atIndex: items.count)
-        } isTargeted: { targeted in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                if targeted && viewModel.dropTarget == nil {
-                    viewModel.dropTarget = .init(priority: priority, index: items.count)
-                }
+        .overlay {
+            // Invisible geometry reader to capture item frames
+            GeometryReader { geo in
+                Color.clear
+                    .preference(key: ContainerFrameKey.self, value: geo.frame(in: .global))
             }
         }
+        .onDrop(of: [UTType.text], delegate: PriorityDropDelegate(
+            priority: priority,
+            viewModel: viewModel
+        ))
+        .animation(.easeInOut(duration: 0.2), value: viewModel.dropTarget)
     }
 
     // MARK: - Subviews
@@ -76,27 +67,105 @@ struct PriorityContainerView: View {
         .background(.regularMaterial, in: .capsule)
     }
 
-    private var dropPlaceholder: some View {
-        RoundedRectangle(cornerRadius: YATATheme.pillHeight / 2)
-            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            .foregroundStyle(.secondary.opacity(0.5))
-            .frame(height: YATATheme.pillHeight)
-    }
-
-    // MARK: - Helpers
-
-    private func isDropTarget(at index: Int) -> Bool {
-        viewModel.dropTarget?.priority == priority && viewModel.dropTarget?.index == index
+    private var insertionIndicator: some View {
+        Capsule()
+            .fill(Color.accentColor.opacity(0.6))
+            .frame(height: 3)
+            .padding(.horizontal, 8)
+            .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .center)))
     }
 
     private func addTapped() {
         viewModel.addingToPriority = priority
     }
+}
 
-    private func handleItemDrop(_ ids: [String], atIndex index: Int) -> Bool {
-        guard let idString = ids.first,
-              let uuid = UUID(uuidString: idString) else { return false }
-        Task { await viewModel.handleDrop(itemID: uuid, toPriority: priority, atIndex: index) }
+// MARK: - Preference key for container frame
+
+private struct ContainerFrameKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
+// MARK: - Drop delegate
+
+private struct PriorityDropDelegate: DropDelegate {
+    let priority: Priority
+    let viewModel: HomeViewModel
+
+    func dropEntered(info: DropInfo) {
+        updateInsertionIndex(from: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateInsertionIndex(from: info)
+        return DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        // Only clear if we're the current target
+        if viewModel.dropTarget?.priority == priority {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                viewModel.dropTarget = nil
+            }
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let provider = info.itemProviders(for: [UTType.text]).first else {
+            viewModel.endDrag()
+            return false
+        }
+
+        let targetIndex = viewModel.dropTarget?.index ?? viewModel.items(for: priority).count
+
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let idString = object as? String,
+                  let uuid = UUID(uuidString: idString) else { return }
+            Task { @MainActor in
+                await viewModel.handleDrop(itemID: uuid, toPriority: priority, atIndex: targetIndex)
+            }
+        }
         return true
+    }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.text])
+    }
+
+    // Calculate insertion index based on Y position within the container
+    private func updateInsertionIndex(from info: DropInfo) {
+        let items = viewModel.items(for: priority)
+        let itemCount = items.count
+
+        // Each pill takes pillHeight + pillSpacing, offset by add button + container padding
+        let addButtonHeight = YATATheme.pillHeight + YATATheme.pillSpacing
+        let containerPadding = YATATheme.containerPadding
+        let itemSlotHeight = YATATheme.pillHeight + YATATheme.pillSpacing
+
+        // Y position relative to the first item's top edge
+        let relativeY = info.location.y - containerPadding - addButtonHeight
+
+        // Calculate which slot the cursor is over
+        let rawIndex: Int
+        if relativeY < 0 {
+            rawIndex = 0
+        } else {
+            // Use midpoint of each slot as the threshold
+            rawIndex = min(Int((relativeY + itemSlotHeight / 2) / itemSlotHeight), itemCount)
+        }
+
+        // Skip the dragged item's own position to avoid visual noise
+        let newIndex = rawIndex
+        let currentTarget = viewModel.dropTarget
+
+        // Only update if actually changed (debounce)
+        if currentTarget?.priority != priority || currentTarget?.index != newIndex {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                viewModel.dropTarget = .init(priority: priority, index: newIndex)
+            }
+        }
     }
 }

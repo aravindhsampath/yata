@@ -40,9 +40,10 @@ struct TodoPillView: View {
         } preview: {
             Text(item.title)
                 .font(YATATheme.pillFont)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.regularMaterial, in: .capsule)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.ultraThinMaterial, in: .capsule)
+                .shadow(radius: 8)
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: triggerDragHaptic)
         .sensoryFeedback(.success, trigger: triggerDoneHaptic)
