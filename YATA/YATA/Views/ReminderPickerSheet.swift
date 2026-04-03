@@ -8,18 +8,27 @@ struct ReminderPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
+            VStack(spacing: 24) {
                 DatePicker(
-                    "Reminder",
+                    "Date",
                     selection: $pickerDate,
                     in: Date.now...,
-                    displayedComponents: [.date, .hourAndMinute]
+                    displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
-                .padding()
+
+                DatePicker(
+                    "Time",
+                    selection: $pickerDate,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+                .frame(height: 100)
 
                 Spacer()
             }
+            .padding()
             .navigationTitle("Set Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -31,7 +40,7 @@ struct ReminderPickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .task {
             if let selectedDate {
                 pickerDate = selectedDate
