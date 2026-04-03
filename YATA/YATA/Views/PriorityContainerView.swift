@@ -120,6 +120,8 @@ private struct PriorityDropDelegate: DropDelegate {
         }
 
         let targetIndex = viewModel.dropTarget?.index ?? viewModel.items(for: priority).count
+        // Clear visual state immediately so pill doesn't stay faded
+        viewModel.endDrag()
 
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let idString = object as? String,
