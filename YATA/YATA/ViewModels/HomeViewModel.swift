@@ -128,6 +128,8 @@ final class HomeViewModel {
 
     /// Called when an item is dropped at a specific index in a priority container
     func handleDrop(itemID: UUID, toPriority: Priority, atIndex: Int) async {
+        defer { draggingItemID = nil; dropTarget = nil }
+
         // Find the item across all priorities
         let allItems = Priority.allCases.flatMap { items(for: $0) }
         guard let item = allItems.first(where: { $0.id == itemID }) else { return }
@@ -160,9 +162,6 @@ final class HomeViewModel {
                 errorMessage = error.localizedDescription
             }
         }
-
-        draggingItemID = nil
-        dropTarget = nil
     }
 
     func startDrag(itemID: UUID) {
