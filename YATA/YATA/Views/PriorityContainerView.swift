@@ -25,7 +25,6 @@ struct PriorityContainerView: View {
                     onDelete: { Task { await viewModel.deleteItem(item) } },
                     onDragStart: { viewModel.startDrag(itemID: item.id) }
                 )
-                .opacity(viewModel.draggingItemID == item.id ? 0.3 : 1)
             }
 
             // Insertion indicator at the end
