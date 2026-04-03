@@ -25,8 +25,6 @@ struct PriorityContainerView: View {
                     onDelete: { Task { await viewModel.deleteItem(item) } },
                     onDragStart: { viewModel.startDrag(itemID: item.id) }
                 )
-                .opacity(viewModel.draggingItemID == item.id ? 0 : 1)
-                .animation(.none, value: viewModel.draggingItemID)
             }
 
             // Insertion indicator at the end
@@ -121,16 +119,12 @@ private struct PriorityDropDelegate: DropDelegate {
         }
 
         let targetIndex = viewModel.dropTarget?.index ?? viewModel.items(for: priority).count
-        // Only clear dropTarget here — draggingItemID stays set so the pill
-        // remains hidden until handleDrop moves it to the new location
-        viewModel.dropTarget = nil
+        // Clear visual state immediately so pill doesn't stay faded
+        viewModel.endDrag()
 
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let idString = object as? String,
-                  let uuid = UUID(uuidString: idString) else {
-                Task { @MainActor in viewModel.endDrag() }
-                return
-            }
+                  let uuid = UUID(uuidString: idString) else { return }
             Task { @MainActor in
                 await viewModel.handleDrop(itemID: uuid, toPriority: priority, atIndex: targetIndex)
             }
