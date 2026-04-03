@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 protocol TodoRepository {
     func fetchItems(priority: Priority) async throws -> [TodoItem]
     func fetchDoneItems() async throws -> [TodoItem]
