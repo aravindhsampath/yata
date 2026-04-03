@@ -79,10 +79,7 @@ struct AddEditSheet: View {
                 }
             }
             .sheet(isPresented: $showReminderPicker) {
-                ReminderPickerSheet(
-                    selectedDate: $reminderDate,
-                    isPresented: $showReminderPicker
-                )
+                ReminderPickerSheet(selectedDate: $reminderDate)
             }
             .sheet(isPresented: $showReschedulePicker) {
                 rescheduleSheet

@@ -15,8 +15,10 @@ struct RepeatingView: View {
         }
         .task {
             if viewModel == nil {
-                let repo = LocalRepeatingRepository(modelContainer: modelContext.container)
-                let vm = RepeatingViewModel(repository: repo)
+                let container = modelContext.container
+                let repo = LocalRepeatingRepository(modelContainer: container)
+                let todoRepo = LocalTodoRepository(modelContainer: container)
+                let vm = RepeatingViewModel(repository: repo, todoRepository: todoRepo)
                 viewModel = vm
                 await vm.loadAll()
             }
@@ -59,14 +61,14 @@ private struct RepeatingContentView: View {
         .sheet(item: $viewModel.editingItem) { item in
             RepeatingAddEditSheet(
                 mode: .edit(item),
-                onSave: { title, frequency, time, dayOfWeek, dayOfMonth, month, urgency in
-                    item.title = title
-                    item.frequency = frequency
-                    item.scheduledTime = time
-                    item.scheduledDayOfWeek = dayOfWeek
-                    item.scheduledDayOfMonth = dayOfMonth
-                    item.scheduledMonth = month
-                    item.defaultUrgency = urgency
+                onSave: { data in
+                    item.title = data.title
+                    item.frequency = data.frequency
+                    item.scheduledTime = data.scheduledTime
+                    item.scheduledDayOfWeek = data.dayOfWeek
+                    item.scheduledDayOfMonth = data.dayOfMonth
+                    item.scheduledMonth = data.month
+                    item.defaultUrgency = data.defaultUrgency
                     Task { await viewModel.updateItem(item) }
                 },
                 onDelete: {
@@ -77,16 +79,16 @@ private struct RepeatingContentView: View {
         .sheet(isPresented: $viewModel.isAdding) {
             RepeatingAddEditSheet(
                 mode: .add,
-                onSave: { title, frequency, time, dayOfWeek, dayOfMonth, month, urgency in
+                onSave: { data in
                     Task {
                         await viewModel.addItem(
-                            title: title,
-                            frequency: frequency,
-                            scheduledTime: time,
-                            dayOfWeek: dayOfWeek,
-                            dayOfMonth: dayOfMonth,
-                            month: month,
-                            defaultUrgency: urgency
+                            title: data.title,
+                            frequency: data.frequency,
+                            scheduledTime: data.scheduledTime,
+                            dayOfWeek: data.dayOfWeek,
+                            dayOfMonth: data.dayOfMonth,
+                            month: data.month,
+                            defaultUrgency: data.defaultUrgency
                         )
                     }
                 },

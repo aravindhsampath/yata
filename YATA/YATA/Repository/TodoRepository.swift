@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 
 @MainActor
 protocol TodoRepository {
@@ -10,6 +11,7 @@ protocol TodoRepository {
     func reorder(ids: [UUID], in priority: Priority) async throws
     func move(_ item: TodoItem, to priority: Priority) async throws
     func rolloverOverdueItems(to date: Date) async throws
-    func materializeRepeatingItems(for dateRange: ClosedRange<Date>, using container: Any) async throws
+    func materializeRepeatingItems(for dateRange: ClosedRange<Date>) async throws
     func reschedule(_ item: TodoItem, to date: Date) async throws
+    func deleteUndoneOccurrences(for repeatingID: UUID) async throws
 }

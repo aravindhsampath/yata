@@ -5,6 +5,7 @@ import SwiftUI
 @Observable
 final class RepeatingViewModel {
     private let repository: any RepeatingRepository
+    private let todoRepository: (any TodoRepository)?
 
     var items: [RepeatingItem] = []
     var isLoading = false
@@ -16,8 +17,9 @@ final class RepeatingViewModel {
         set { if !newValue { errorMessage = nil } }
     }
 
-    init(repository: any RepeatingRepository) {
+    init(repository: any RepeatingRepository, todoRepository: (any TodoRepository)? = nil) {
         self.repository = repository
+        self.todoRepository = todoRepository
     }
 
     func loadAll() async {
@@ -67,6 +69,7 @@ final class RepeatingViewModel {
 
     func deleteItem(_ item: RepeatingItem) async {
         do {
+            try await todoRepository?.deleteUndoneOccurrences(for: item.id)
             try await repository.delete(item)
             items.removeAll { $0.id == item.id }
         } catch {

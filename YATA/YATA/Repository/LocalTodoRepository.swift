@@ -84,7 +84,8 @@ final class LocalTodoRepository: TodoRepository {
     // MARK: - Rollover
 
     func rolloverOverdueItems(to date: Date) throws {
-        let today = Calendar.current.startOfDay(for: date)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: date)
         let predicate = #Predicate<TodoItem> { item in
             item.isDone == false && item.scheduledDate < today
         }
@@ -92,8 +93,9 @@ final class LocalTodoRepository: TodoRepository {
         let overdueItems = try modelContext.fetch(descriptor)
 
         for item in overdueItems {
+            let daysOverdue = calendar.dateComponents([.day], from: calendar.startOfDay(for: item.scheduledDate), to: today).day ?? 1
+            item.rescheduleCount += max(daysOverdue, 1)
             item.scheduledDate = today
-            item.rescheduleCount += 1
         }
         if !overdueItems.isEmpty {
             try modelContext.save()
@@ -102,11 +104,9 @@ final class LocalTodoRepository: TodoRepository {
 
     // MARK: - Occurrence Materialization
 
-    func materializeRepeatingItems(for dateRange: ClosedRange<Date>, using container: Any) throws {
-        guard let modelContainer = container as? ModelContainer else { return }
-        let repeatingContext = ModelContext(modelContainer)
+    func materializeRepeatingItems(for dateRange: ClosedRange<Date>) throws {
         let repeatingDescriptor = FetchDescriptor<RepeatingItem>()
-        let rules = try repeatingContext.fetch(repeatingDescriptor)
+        let rules = try modelContext.fetch(repeatingDescriptor)
         guard !rules.isEmpty else { return }
 
         let calendar = Calendar.current
@@ -158,11 +158,31 @@ final class LocalTodoRepository: TodoRepository {
         }
     }
 
+    // MARK: - Orphan Cleanup
+
+    func deleteUndoneOccurrences(for repeatingID: UUID) throws {
+        let predicate = #Predicate<TodoItem> { item in
+            item.sourceRepeatingID == repeatingID && item.isDone == false
+        }
+        let descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
+        let orphans = try modelContext.fetch(descriptor)
+        for orphan in orphans {
+            modelContext.delete(orphan)
+        }
+        if !orphans.isEmpty {
+            try modelContext.save()
+        }
+    }
+
     // MARK: - Reschedule
 
     func reschedule(_ item: TodoItem, to date: Date) throws {
-        item.scheduledDate = Calendar.current.startOfDay(for: date)
-        item.rescheduleCount = 0
+        let newDate = Calendar.current.startOfDay(for: date)
+        let oldDate = Calendar.current.startOfDay(for: item.scheduledDate)
+        if newDate != oldDate {
+            item.scheduledDate = newDate
+            item.rescheduleCount = 0
+        }
         try modelContext.save()
     }
 

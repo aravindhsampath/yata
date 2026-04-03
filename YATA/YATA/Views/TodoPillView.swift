@@ -42,10 +42,17 @@ struct TodoPillView: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: triggerDragHaptic)
         .sensoryFeedback(.success, trigger: triggerDoneHaptic)
         .sensoryFeedback(.warning, trigger: triggerDeleteHaptic)
+        .accessibilityAction(named: "Delete") { onDelete() }
     }
 
     private var pillContent: some View {
         HStack(spacing: 6) {
+            if item.isRepeatingOccurrence {
+                Image(systemName: "repeat")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
             Text(item.title)
                 .font(YATATheme.pillFont)
                 .foregroundStyle(.primary)

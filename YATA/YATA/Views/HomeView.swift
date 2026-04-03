@@ -15,12 +15,11 @@ struct HomeView: View {
         }
         .task {
             if viewModel == nil {
-                let container = modelContext.container
-                let repo = LocalTodoRepository(modelContainer: container)
+                let repo = LocalTodoRepository(modelContainer: modelContext.container)
                 let vm = HomeViewModel(repository: repo)
                 viewModel = vm
                 await vm.performRollover()
-                await vm.materializeRepeatingItems(using: container)
+                await vm.materializeRepeatingItems()
                 await vm.loadAll()
             }
         }
@@ -28,7 +27,6 @@ struct HomeView: View {
 }
 
 private struct HomeContentView: View {
-    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: HomeViewModel
     @AppStorage("doneListSize") private var doneListSize = 25
 
@@ -39,9 +37,7 @@ private struct HomeContentView: View {
                     weekDates: viewModel.weekDates,
                     selectedDate: viewModel.selectedDate,
                     onSelectDate: { date in
-                        Task {
-                            await viewModel.selectDate(date, using: modelContext.container)
-                        }
+                        Task { await viewModel.selectDate(date) }
                     }
                 )
 
@@ -58,9 +54,8 @@ private struct HomeContentView: View {
         }
         .scrollIndicators(.hidden)
         .refreshable {
-            let container = modelContext.container
             await viewModel.performRollover()
-            await viewModel.materializeRepeatingItems(using: container)
+            await viewModel.materializeRepeatingItems()
             await viewModel.loadAll()
         }
         .sheet(item: $viewModel.editingItem) { item in
@@ -106,19 +101,19 @@ private struct HomeContentView: View {
         .onAppear {
             viewModel.doneListLimit = doneListSize
             Task {
-                let container = modelContext.container
-                await viewModel.materializeRepeatingItems(using: container)
+                await viewModel.materializeRepeatingItems()
                 await viewModel.loadAll()
             }
         }
-        .task(id: "midnightRollover") {
+        .task {
+            // Midnight rollover timer
             while !Task.isCancelled {
-                let delay = viewModel.secondsUntilMidnight + 1 // 1s past midnight
+                let delay = viewModel.secondsUntilMidnight + 1
                 try? await Task.sleep(for: .seconds(delay))
                 guard !Task.isCancelled else { break }
-                let container = modelContext.container
+                viewModel.refreshWeekDates()
                 await viewModel.performRollover()
-                await viewModel.materializeRepeatingItems(using: container)
+                await viewModel.materializeRepeatingItems()
                 await viewModel.loadAll()
             }
         }

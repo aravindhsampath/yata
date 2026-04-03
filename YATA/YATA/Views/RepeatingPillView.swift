@@ -26,6 +26,7 @@ struct RepeatingPillView: View {
                 .offset(x: dragOffset)
                 .gesture(swipeToDeleteGesture)
         }
+        .accessibilityAction(named: "Delete") { onDelete() }
     }
 
     private var pillContent: some View {

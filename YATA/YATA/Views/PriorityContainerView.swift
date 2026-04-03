@@ -11,10 +11,10 @@ struct PriorityContainerView: View {
         VStack(spacing: YATATheme.pillSpacing) {
             addButton
 
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                // Thin insertion indicator above this item
-                if viewModel.dropTarget?.priority == priority
-                    && viewModel.dropTarget?.index == index {
+            ForEach(items) { item in
+                if let index = items.firstIndex(where: { $0.id == item.id }),
+                   viewModel.dropTarget?.priority == priority,
+                   viewModel.dropTarget?.index == index {
                     insertionIndicator
                 }
 
@@ -57,6 +57,7 @@ struct PriorityContainerView: View {
             .contentShape(.capsule)
         }
         .background(.regularMaterial, in: .capsule)
+        .accessibilityLabel("Add to \(priority.label)")
     }
 
     private var insertionIndicator: some View {

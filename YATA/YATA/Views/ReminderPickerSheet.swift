@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ReminderPickerSheet: View {
     @Binding var selectedDate: Date?
-    @Binding var isPresented: Bool
+    @Environment(\.dismiss) private var dismiss
 
     @State private var pickerDate = Date.now
 
@@ -33,10 +33,13 @@ struct ReminderPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: cancel)
+                    Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save)
+                    Button("Save") {
+                        selectedDate = pickerDate
+                        dismiss()
+                    }
                 }
             }
         }
@@ -46,14 +49,5 @@ struct ReminderPickerSheet: View {
                 pickerDate = selectedDate
             }
         }
-    }
-
-    private func cancel() {
-        isPresented = false
-    }
-
-    private func save() {
-        selectedDate = pickerDate
-        isPresented = false
     }
 }

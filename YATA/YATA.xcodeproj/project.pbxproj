@@ -24,7 +24,7 @@
 		A10000010000000000000015 /* RepeatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* RepeatingView.swift */; };
 		A10000010000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* SettingsView.swift */; };
 		A10000010000000000000017 /* YATATheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000017 /* YATATheme.swift */; };
-		A10000010000000000000018 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000018 /* HapticManager.swift */; };
+		A10000010000000000000033 /* RepeatingItemData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000033 /* RepeatingItemData.swift */; };
 		A10000010000000000000019 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000019 /* Assets.xcassets */; };
 		A10000010000000000000020 /* RepeatFrequency.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000020 /* RepeatFrequency.swift */; };
 		A10000010000000000000021 /* RepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000021 /* RepeatingItem.swift */; };
@@ -39,7 +39,18 @@
 		A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000030 /* RepeatingAddEditMode.swift */; };
 		A10000010000000000000031 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000031 /* Weekday.swift */; };
 		A10000010000000000000032 /* WeekStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000032 /* WeekStripView.swift */; };
+		B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* LocalTodoRepositoryTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B30000010000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A90000010000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A60000010000000000000001;
+			remoteInfo = YATA;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A20000010000000000000001 /* YATAApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATAApp.swift; sourceTree = "<group>"; };
@@ -59,7 +70,7 @@
 		A20000010000000000000015 /* RepeatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingView.swift; sourceTree = "<group>"; };
 		A20000010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000010000000000000017 /* YATATheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATheme.swift; sourceTree = "<group>"; };
-		A20000010000000000000018 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		A20000010000000000000033 /* RepeatingItemData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItemData.swift; sourceTree = "<group>"; };
 		A20000010000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000010000000000000020 /* RepeatFrequency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatFrequency.swift; sourceTree = "<group>"; };
 		A20000010000000000000021 /* RepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItem.swift; sourceTree = "<group>"; };
@@ -75,10 +86,19 @@
 		A20000010000000000000031 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weekday.swift; sourceTree = "<group>"; };
 		A20000010000000000000032 /* WeekStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekStripView.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000010000000000000001 /* LocalTodoRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepositoryTests.swift; sourceTree = "<group>"; };
+		B30000010000000000000002 /* YATATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YATATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A40000010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B40000010000000000000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -92,6 +112,7 @@
 			isa = PBXGroup;
 			children = (
 				A50000010000000000000002 /* YATA */,
+				B50000010000000000000001 /* YATATests */,
 				A50000010000000000000009 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -123,6 +144,7 @@
 				A20000010000000000000029 /* AddEditMode.swift */,
 				A20000010000000000000030 /* RepeatingAddEditMode.swift */,
 				A20000010000000000000031 /* Weekday.swift */,
+				A20000010000000000000033 /* RepeatingItemData.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -178,7 +200,6 @@
 		A50000010000000000000008 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
-				A20000010000000000000018 /* HapticManager.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -187,8 +208,17 @@
 			isa = PBXGroup;
 			children = (
 				A30000010000000000000001 /* YATA.app */,
+				B30000010000000000000002 /* YATATests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B50000010000000000000001 /* YATATests */ = {
+			isa = PBXGroup;
+			children = (
+				B20000010000000000000001 /* LocalTodoRepositoryTests.swift */,
+			);
+			path = YATATests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -211,7 +241,32 @@
 			productReference = A30000010000000000000001 /* YATA.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B60000010000000000000001 /* YATATests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B80000010000000000000001 /* Build configuration list for PBXNativeTarget "YATATests" */;
+			buildPhases = (
+				B70000010000000000000001 /* Sources */,
+				B40000010000000000000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B30000010000000000000003 /* PBXTargetDependency */,
+			);
+			name = YATATests;
+			productName = YATATests;
+			productReference = B30000010000000000000002 /* YATATests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXTargetDependency section */
+		B30000010000000000000003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A60000010000000000000001 /* YATA */;
+			targetProxy = B30000010000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		A90000010000000000000001 /* Project object */ = {
@@ -223,6 +278,10 @@
 				TargetAttributes = {
 					A60000010000000000000001 = {
 						CreatedOnToolsVersion = 15.4;
+					};
+					B60000010000000000000001 = {
+						CreatedOnToolsVersion = 15.4;
+						TestTargetID = A60000010000000000000001;
 					};
 				};
 			};
@@ -240,6 +299,7 @@
 			projectRoot = "";
 			targets = (
 				A60000010000000000000001 /* YATA */,
+				B60000010000000000000001 /* YATATests */,
 			);
 		};
 /* End PBXProject section */
@@ -256,6 +316,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B70000010000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A70000010000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -277,7 +345,7 @@
 				A10000010000000000000015 /* RepeatingView.swift in Sources */,
 				A10000010000000000000016 /* SettingsView.swift in Sources */,
 				A10000010000000000000017 /* YATATheme.swift in Sources */,
-				A10000010000000000000018 /* HapticManager.swift in Sources */,
+				A10000010000000000000033 /* RepeatingItemData.swift in Sources */,
 				A10000010000000000000020 /* RepeatFrequency.swift in Sources */,
 				A10000010000000000000021 /* RepeatingItem.swift in Sources */,
 				A10000010000000000000022 /* RepeatingRepository.swift in Sources */,
@@ -477,6 +545,46 @@
 			};
 			name = Release;
 		};
+		BB000001000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aravindhsampath.yata.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/YATA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/YATA";
+			};
+			name = Debug;
+		};
+		BB000001000000000000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aravindhsampath.yata.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/YATA.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/YATA";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -494,6 +602,15 @@
 			buildConfigurations = (
 				AA000001000000000000003 /* Debug */,
 				AA000001000000000000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B80000010000000000000001 /* Build configuration list for PBXNativeTarget "YATATests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB000001000000000000001 /* Debug */,
+				BB000001000000000000002 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

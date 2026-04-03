@@ -21,11 +21,7 @@ final class HomeViewModel {
 
     // Calendar state
     var selectedDate: Date = Calendar.current.startOfDay(for: .now)
-    var weekDates: [Date] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-    }
+    private(set) var weekDates: [Date] = []
 
     // Done list limit
     var doneListLimit: Int = 25
@@ -41,6 +37,13 @@ final class HomeViewModel {
 
     init(repository: any TodoRepository) {
         self.repository = repository
+        refreshWeekDates()
+    }
+
+    func refreshWeekDates() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        weekDates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
     }
 
     func loadAll() async {
@@ -56,11 +59,9 @@ final class HomeViewModel {
         }
     }
 
-    func selectDate(_ date: Date, using container: Any? = nil) async {
+    func selectDate(_ date: Date) async {
         selectedDate = Calendar.current.startOfDay(for: date)
-        if let container {
-            await materializeRepeatingItems(using: container)
-        }
+        await materializeRepeatingItems()
         await loadAll()
     }
 
@@ -199,7 +200,6 @@ final class HomeViewModel {
 
     // MARK: - Rollover & Materialization
 
-    /// Seconds until next midnight — used to schedule rollover timer
     var secondsUntilMidnight: TimeInterval {
         let calendar = Calendar.current
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now))!
@@ -214,10 +214,10 @@ final class HomeViewModel {
         }
     }
 
-    func materializeRepeatingItems(using container: Any) async {
-        guard let range = weekDateRange() else { return }
+    func materializeRepeatingItems() async {
+        guard let first = weekDates.first, let last = weekDates.last else { return }
         do {
-            try await repository.materializeRepeatingItems(for: range, using: container)
+            try await repository.materializeRepeatingItems(for: first...last)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -232,12 +232,7 @@ final class HomeViewModel {
         }
     }
 
-    // MARK: - Helpers
-
-    private func weekDateRange() -> ClosedRange<Date>? {
-        guard let first = weekDates.first, let last = weekDates.last else { return nil }
-        return first...last
-    }
+    // MARK: - Array helpers
 
     private func removeFromPriorityArray(_ item: TodoItem) {
         removeFromArray(for: item.priority, item: item)

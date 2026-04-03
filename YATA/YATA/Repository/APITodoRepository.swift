@@ -24,7 +24,9 @@ struct APITodoRepository: TodoRepository {
 
     func rolloverOverdueItems(to date: Date) async throws {}
 
-    func materializeRepeatingItems(for dateRange: ClosedRange<Date>, using container: Any) async throws {}
+    func materializeRepeatingItems(for dateRange: ClosedRange<Date>) async throws {}
 
     func reschedule(_ item: TodoItem, to date: Date) async throws {}
+
+    func deleteUndoneOccurrences(for repeatingID: UUID) async throws {}
 }

@@ -9,9 +9,9 @@ enum Priority: Int, Codable, CaseIterable, Comparable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .high: "High"
-        case .medium: "Medium"
-        case .low: "Low"
+        case .high: "Do Today"
+        case .medium: "This Week"
+        case .low: "Wait"
         }
     }
 

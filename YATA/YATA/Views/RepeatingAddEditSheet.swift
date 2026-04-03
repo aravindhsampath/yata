@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RepeatingAddEditSheet: View {
     let mode: RepeatingAddEditMode
-    let onSave: (String, RepeatFrequency, Date, Int?, Int?, Int?, Priority) -> Void
+    let onSave: (RepeatingItemData) -> Void
     let onDelete: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -29,7 +29,7 @@ struct RepeatingAddEditSheet: View {
 
     init(
         mode: RepeatingAddEditMode,
-        onSave: @escaping (String, RepeatFrequency, Date, Int?, Int?, Int?, Priority) -> Void,
+        onSave: @escaping (RepeatingItemData) -> Void,
         onDelete: (() -> Void)?
     ) {
         self.mode = mode
@@ -283,7 +283,15 @@ struct RepeatingAddEditSheet: View {
         let dayOfMonth: Int? = (frequency == .monthly || frequency == .yearly) ? selectedDayOfMonth : nil
         let month: Int? = frequency == .yearly ? selectedMonth : nil
 
-        onSave(trimmed, frequency, scheduledTime, dayOfWeek, dayOfMonth, month, defaultUrgency)
+        onSave(RepeatingItemData(
+            title: trimmed,
+            frequency: frequency,
+            scheduledTime: scheduledTime,
+            dayOfWeek: dayOfWeek,
+            dayOfMonth: dayOfMonth,
+            month: month,
+            defaultUrgency: defaultUrgency
+        ))
         dismiss()
     }
 

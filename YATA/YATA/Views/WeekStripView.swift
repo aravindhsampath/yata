@@ -5,8 +5,6 @@ struct WeekStripView: View {
     let selectedDate: Date
     let onSelectDate: (Date) -> Void
 
-    private let calendar = Calendar.current
-
     var body: some View {
         VStack(spacing: 12) {
             Text(selectedDate.formatted(.dateTime.weekday(.wide).month(.wide).day()))
@@ -23,6 +21,7 @@ struct WeekStripView: View {
     }
 
     private func dayColumn(for date: Date) -> some View {
+        let calendar = Calendar.current
         let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
         let isToday = calendar.isDateInToday(date)
 
