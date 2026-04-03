@@ -23,15 +23,10 @@ final class HomeViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            async let h = repository.fetchItems(priority: .high)
-            async let m = repository.fetchItems(priority: .medium)
-            async let l = repository.fetchItems(priority: .low)
-            async let d = repository.fetchDoneItems()
-            let (high, medium, low, done) = try await (h, m, l, d)
-            highItems = high
-            mediumItems = medium
-            lowItems = low
-            doneItems = done
+            highItems = try await repository.fetchItems(priority: .high)
+            mediumItems = try await repository.fetchItems(priority: .medium)
+            lowItems = try await repository.fetchItems(priority: .low)
+            doneItems = try await repository.fetchDoneItems()
         } catch {
             errorMessage = error.localizedDescription
         }

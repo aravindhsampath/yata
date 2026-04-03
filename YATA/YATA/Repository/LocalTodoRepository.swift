@@ -1,8 +1,14 @@
 import Foundation
 import SwiftData
 
-@ModelActor
-actor LocalTodoRepository: TodoRepository {
+@MainActor
+final class LocalTodoRepository: TodoRepository {
+    private let modelContext: ModelContext
+
+    init(modelContainer: ModelContainer) {
+        self.modelContext = ModelContext(modelContainer)
+        self.modelContext.autosaveEnabled = true
+    }
 
     func fetchItems(priority: Priority) throws -> [TodoItem] {
         let rawValue = priority.rawValue
@@ -59,7 +65,6 @@ actor LocalTodoRepository: TodoRepository {
 
     func move(_ item: TodoItem, to priority: Priority) throws {
         item.priority = priority
-        // Place at end of target priority
         let rawValue = priority.rawValue
         let predicate = #Predicate<TodoItem> { existing in
             existing.isDone == false && existing.priorityRawValue == rawValue
