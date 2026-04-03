@@ -128,49 +128,31 @@ struct RepeatingAddEditSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             switch frequency {
             case .daily, .everyWorkday:
-                inlineTimePicker
+                chipRow(items: [
+                    ("Time", formattedTime, .time),
+                ])
 
             case .weekly:
                 dayOfWeekPicker
-                inlineTimePicker
+                chipRow(items: [
+                    ("Time", formattedTime, .time),
+                ])
 
             case .monthly:
-                chipRow(
-                    items: [
-                        ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
-                        ("Time", formattedTime, .time),
-                    ]
-                )
+                chipRow(items: [
+                    ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
+                    ("Time", formattedTime, .time),
+                ])
 
             case .yearly:
-                chipRow(
-                    items: [
-                        ("Month", shortMonthName, .month),
-                        ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
-                        ("Time", formattedTime, .time),
-                    ]
-                )
+                chipRow(items: [
+                    ("Month", shortMonthName, .month),
+                    ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
+                    ("Time", formattedTime, .time),
+                ])
             }
         }
         .animation(.easeInOut(duration: 0.2), value: frequency)
-    }
-
-    // Full inline time picker for daily/workdays/weekly
-    private var inlineTimePicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Time")
-                .font(YATATheme.captionFont)
-                .foregroundStyle(.secondary)
-
-            DatePicker(
-                "Time",
-                selection: $scheduledTime,
-                displayedComponents: .hourAndMinute
-            )
-            .labelsHidden()
-            .datePickerStyle(.wheel)
-            .frame(height: 100)
-        }
     }
 
     private var dayOfWeekPicker: some View {
