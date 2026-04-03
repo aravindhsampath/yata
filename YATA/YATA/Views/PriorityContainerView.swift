@@ -25,7 +25,6 @@ struct PriorityContainerView: View {
                     onDelete: { Task { await viewModel.deleteItem(item) } },
                     onDragStart: { viewModel.startDrag(itemID: item.id) }
                 )
-                .opacity(viewModel.draggingItemID == item.id ? 0 : 1)
             }
 
             // Insertion indicator at the end
@@ -105,17 +104,10 @@ private struct PriorityDropDelegate: DropDelegate {
     }
 
     func dropExited(info: DropInfo) {
+        // Only clear if we're the current target
         if viewModel.dropTarget?.priority == priority {
             withAnimation(.easeInOut(duration: 0.15)) {
                 viewModel.dropTarget = nil
-            }
-        }
-        // Clear drag state after a brief delay — if another container's
-        // dropEntered fires first, startDrag will re-set it. If the drag
-        // was cancelled (lifted outside all containers), this restores the pill.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            if viewModel.dropTarget == nil {
-                viewModel.draggingItemID = nil
             }
         }
     }
