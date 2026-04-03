@@ -1,14 +1,17 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct TodoPillView: View {
     let item: TodoItem
     let onMarkDone: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onDragStart: () -> Void
 
     @State private var dragOffset: Double = 0
     @State private var triggerDeleteHaptic = false
     @State private var triggerDoneHaptic = false
+    @State private var triggerDragHaptic = false
 
     private let deleteThreshold: Double = -150
 
@@ -30,13 +33,18 @@ struct TodoPillView: View {
                 .offset(x: dragOffset)
                 .gesture(swipeToDeleteGesture)
         }
-        .draggable(item.id.uuidString) {
+        .onDrag {
+            triggerDragHaptic.toggle()
+            onDragStart()
+            return NSItemProvider(object: item.id.uuidString as NSString)
+        } preview: {
             Text(item.title)
                 .font(YATATheme.pillFont)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background(.regularMaterial, in: .capsule)
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: triggerDragHaptic)
         .sensoryFeedback(.success, trigger: triggerDoneHaptic)
         .sensoryFeedback(.warning, trigger: triggerDeleteHaptic)
     }

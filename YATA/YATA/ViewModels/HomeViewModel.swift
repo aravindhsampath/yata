@@ -15,6 +15,15 @@ final class HomeViewModel {
     var addingToPriority: Priority?
     var errorMessage: String?
 
+    // Drag state
+    var draggingItemID: UUID?
+    var dropTarget: DropTarget?
+
+    struct DropTarget: Equatable {
+        let priority: Priority
+        let index: Int
+    }
+
     init(repository: any TodoRepository) {
         self.repository = repository
     }
@@ -117,6 +126,54 @@ final class HomeViewModel {
         }
     }
 
+    /// Called when an item is dropped at a specific index in a priority container
+    func handleDrop(itemID: UUID, toPriority: Priority, atIndex: Int) async {
+        // Find the item across all priorities
+        let allItems = Priority.allCases.flatMap { items(for: $0) }
+        guard let item = allItems.first(where: { $0.id == itemID }) else { return }
+
+        let sourcePriority = item.priority
+
+        if sourcePriority == toPriority {
+            // Reorder within same container
+            var currentItems = items(for: toPriority)
+            guard let fromIndex = currentItems.firstIndex(where: { $0.id == itemID }) else { return }
+            let targetIndex = atIndex > fromIndex ? atIndex - 1 : atIndex
+            currentItems.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: targetIndex > fromIndex ? targetIndex + 1 : targetIndex)
+            let ids = currentItems.map(\.id)
+            setItems(currentItems, for: toPriority)
+            await reorder(ids: ids, in: toPriority)
+        } else {
+            // Move across containers
+            removeFromArray(for: sourcePriority, item: item)
+            var targetItems = items(for: toPriority)
+            let insertAt = min(atIndex, targetItems.count)
+            item.priority = toPriority
+            targetItems.insert(item, at: insertAt)
+            setItems(targetItems, for: toPriority)
+            // Persist
+            do {
+                try await repository.move(item, to: toPriority)
+                let ids = targetItems.map(\.id)
+                try await repository.reorder(ids: ids, in: toPriority)
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+
+        draggingItemID = nil
+        dropTarget = nil
+    }
+
+    func startDrag(itemID: UUID) {
+        draggingItemID = itemID
+    }
+
+    func endDrag() {
+        draggingItemID = nil
+        dropTarget = nil
+    }
+
     // MARK: - Targeted array helpers
 
     private func removeFromPriorityArray(_ item: TodoItem) {
@@ -140,6 +197,14 @@ final class HomeViewModel {
         case .high: highItems.append(item)
         case .medium: mediumItems.append(item)
         case .low: lowItems.append(item)
+        }
+    }
+
+    private func setItems(_ items: [TodoItem], for priority: Priority) {
+        switch priority {
+        case .high: highItems = items
+        case .medium: mediumItems = items
+        case .low: lowItems = items
         }
     }
 }
