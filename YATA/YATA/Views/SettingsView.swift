@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
+    @AppStorage("doneListSize") private var doneListSize = 25
 
     private var selectedPreference: Binding<ColorSchemePreference> {
         Binding(
@@ -9,6 +10,8 @@ struct SettingsView: View {
             set: { colorSchemePreference = $0.rawValue }
         )
     }
+
+    private let doneListOptions = [10, 25, 50, 100]
 
     var body: some View {
         NavigationStack {
@@ -20,6 +23,14 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                }
+
+                Section("Recently Done") {
+                    Picker("Show last", selection: $doneListSize) {
+                        ForEach(doneListOptions, id: \.self) { count in
+                            Text("\(count) items").tag(count)
+                        }
+                    }
                 }
 
                 Section("About") {

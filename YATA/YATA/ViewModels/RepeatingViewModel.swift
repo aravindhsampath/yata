@@ -36,7 +36,8 @@ final class RepeatingViewModel {
         scheduledTime: Date,
         dayOfWeek: Int? = nil,
         dayOfMonth: Int? = nil,
-        month: Int? = nil
+        month: Int? = nil,
+        defaultUrgency: Priority = .high
     ) async {
         let item = RepeatingItem(
             title: title,
@@ -45,7 +46,8 @@ final class RepeatingViewModel {
             scheduledDayOfWeek: dayOfWeek,
             scheduledDayOfMonth: dayOfMonth,
             scheduledMonth: month,
-            sortOrder: items.count
+            sortOrder: items.count,
+            defaultUrgency: defaultUrgency
         )
         do {
             try await repository.add(item)

@@ -4,21 +4,26 @@ struct AddEditSheet: View {
     let mode: AddEditMode
     let onSave: (String, Date?) -> Void
     let onDelete: (() -> Void)?
+    let onReschedule: ((Date) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
     @State private var reminderDate: Date?
     @State private var showReminderPicker = false
+    @State private var showReschedulePicker = false
+    @State private var rescheduleDate: Date = Calendar.current.startOfDay(for: .now)
     @FocusState private var isTitleFocused: Bool
 
     init(
         mode: AddEditMode,
         onSave: @escaping (String, Date?) -> Void,
-        onDelete: (() -> Void)?
+        onDelete: (() -> Void)?,
+        onReschedule: ((Date) -> Void)? = nil
     ) {
         self.mode = mode
         self.onSave = onSave
         self.onDelete = onDelete
+        self.onReschedule = onReschedule
 
         switch mode {
         case .add:
@@ -27,6 +32,7 @@ struct AddEditSheet: View {
         case .edit(let item):
             _title = State(initialValue: item.title)
             _reminderDate = State(initialValue: item.reminderDate)
+            _rescheduleDate = State(initialValue: item.scheduledDate)
         }
     }
 
@@ -45,6 +51,10 @@ struct AddEditSheet: View {
                     .focused($isTitleFocused)
 
                 reminderRow
+
+                if isEditing, onReschedule != nil {
+                    rescheduleRow
+                }
 
                 if isEditing, let onDelete {
                     Button("Delete Task", systemImage: "trash", role: .destructive) {
@@ -74,6 +84,9 @@ struct AddEditSheet: View {
                     isPresented: $showReminderPicker
                 )
             }
+            .sheet(isPresented: $showReschedulePicker) {
+                rescheduleSheet
+            }
         }
         .presentationDetents([.medium])
         .task { isTitleFocused = true }
@@ -102,6 +115,51 @@ struct AddEditSheet: View {
             }
         }
         .padding(.horizontal, 4)
+    }
+
+    private var rescheduleRow: some View {
+        HStack {
+            Button(action: { showReschedulePicker = true }) {
+                Label {
+                    Text(rescheduleDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                } icon: {
+                    Image(systemName: "calendar")
+                }
+                .font(YATATheme.captionFont)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var rescheduleSheet: some View {
+        NavigationStack {
+            DatePicker(
+                "Reschedule to",
+                selection: $rescheduleDate,
+                in: Calendar.current.startOfDay(for: .now)...,
+                displayedComponents: .date
+            )
+            .datePickerStyle(.graphical)
+            .padding()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showReschedulePicker = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Move") {
+                        onReschedule?(rescheduleDate)
+                        showReschedulePicker = false
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle("Reschedule")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
     }
 
     private func save() {

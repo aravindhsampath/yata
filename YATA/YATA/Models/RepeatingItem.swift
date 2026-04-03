@@ -12,6 +12,7 @@ final class RepeatingItem {
     var scheduledMonth: Int?       // 1-12
     var sortOrder: Int = 0
     var createdAt: Date = Date.now
+    var defaultUrgencyRawValue: Int = 2  // Priority.high (green / "Do Today")
 
     var frequency: RepeatFrequency {
         get { RepeatFrequency(rawValue: frequencyRawValue) ?? .daily }
@@ -39,6 +40,11 @@ final class RepeatingItem {
         }
     }
 
+    var defaultUrgency: Priority {
+        get { Priority(rawValue: defaultUrgencyRawValue) ?? .high }
+        set { defaultUrgencyRawValue = newValue.rawValue }
+    }
+
     init(
         title: String,
         frequency: RepeatFrequency,
@@ -46,7 +52,8 @@ final class RepeatingItem {
         scheduledDayOfWeek: Int? = nil,
         scheduledDayOfMonth: Int? = nil,
         scheduledMonth: Int? = nil,
-        sortOrder: Int = 0
+        sortOrder: Int = 0,
+        defaultUrgency: Priority = .high
     ) {
         self.id = UUID()
         self.title = title
@@ -57,6 +64,7 @@ final class RepeatingItem {
         self.scheduledMonth = scheduledMonth
         self.sortOrder = sortOrder
         self.createdAt = .now
+        self.defaultUrgencyRawValue = defaultUrgency.rawValue
     }
 
     private func ordinal(_ n: Int) -> String {

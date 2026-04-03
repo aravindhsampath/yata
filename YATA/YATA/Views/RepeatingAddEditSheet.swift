@@ -2,7 +2,7 @@ import SwiftUI
 
 struct RepeatingAddEditSheet: View {
     let mode: RepeatingAddEditMode
-    let onSave: (String, RepeatFrequency, Date, Int?, Int?, Int?) -> Void
+    let onSave: (String, RepeatFrequency, Date, Int?, Int?, Int?, Priority) -> Void
     let onDelete: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
@@ -12,6 +12,7 @@ struct RepeatingAddEditSheet: View {
     @State private var selectedDayOfWeek: Weekday
     @State private var selectedDayOfMonth: Int
     @State private var selectedMonth: Int
+    @State private var defaultUrgency: Priority
     @State private var activePicker: SchedulePicker?
     @FocusState private var isTitleFocused: Bool
 
@@ -28,7 +29,7 @@ struct RepeatingAddEditSheet: View {
 
     init(
         mode: RepeatingAddEditMode,
-        onSave: @escaping (String, RepeatFrequency, Date, Int?, Int?, Int?) -> Void,
+        onSave: @escaping (String, RepeatFrequency, Date, Int?, Int?, Int?, Priority) -> Void,
         onDelete: (() -> Void)?
     ) {
         self.mode = mode
@@ -43,6 +44,7 @@ struct RepeatingAddEditSheet: View {
             _selectedDayOfWeek = State(initialValue: .monday)
             _selectedDayOfMonth = State(initialValue: 1)
             _selectedMonth = State(initialValue: 1)
+            _defaultUrgency = State(initialValue: .high)
         case .edit(let item):
             _title = State(initialValue: item.title)
             _frequency = State(initialValue: item.frequency)
@@ -50,6 +52,7 @@ struct RepeatingAddEditSheet: View {
             _selectedDayOfWeek = State(initialValue: Weekday(rawValue: item.scheduledDayOfWeek ?? 2) ?? .monday)
             _selectedDayOfMonth = State(initialValue: item.scheduledDayOfMonth ?? 1)
             _selectedMonth = State(initialValue: item.scheduledMonth ?? 1)
+            _defaultUrgency = State(initialValue: item.defaultUrgency)
         }
     }
 
@@ -69,6 +72,8 @@ struct RepeatingAddEditSheet: View {
                         .focused($isTitleFocused)
 
                     frequencySection
+
+                    urgencySection
 
                     scheduleSection
 
@@ -102,6 +107,23 @@ struct RepeatingAddEditSheet: View {
         .task { isTitleFocused = true }
         .onChange(of: frequency) {
             isTitleFocused = false
+        }
+    }
+
+    // MARK: - Urgency picker
+
+    private var urgencySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Lane")
+                .font(YATATheme.captionFont)
+                .foregroundStyle(.secondary)
+
+            Picker("Lane", selection: $defaultUrgency) {
+                Text("Do Today").tag(Priority.high)
+                Text("This Week").tag(Priority.medium)
+                Text("Wait").tag(Priority.low)
+            }
+            .pickerStyle(.segmented)
         }
     }
 
@@ -261,7 +283,7 @@ struct RepeatingAddEditSheet: View {
         let dayOfMonth: Int? = (frequency == .monthly || frequency == .yearly) ? selectedDayOfMonth : nil
         let month: Int? = frequency == .yearly ? selectedMonth : nil
 
-        onSave(trimmed, frequency, scheduledTime, dayOfWeek, dayOfMonth, month)
+        onSave(trimmed, frequency, scheduledTime, dayOfWeek, dayOfMonth, month, defaultUrgency)
         dismiss()
     }
 

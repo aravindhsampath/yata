@@ -19,6 +19,17 @@ final class HomeViewModel {
         set { if !newValue { errorMessage = nil } }
     }
 
+    // Calendar state
+    var selectedDate: Date = Calendar.current.startOfDay(for: .now)
+    var weekDates: [Date] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+    }
+
+    // Done list limit
+    var doneListLimit: Int = 25
+
     // Drag state
     var draggingItemID: UUID?
     var dropTarget: DropTarget?
@@ -36,13 +47,18 @@ final class HomeViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            highItems = try await repository.fetchItems(priority: .high)
-            mediumItems = try await repository.fetchItems(priority: .medium)
-            lowItems = try await repository.fetchItems(priority: .low)
-            doneItems = try await repository.fetchDoneItems()
+            highItems = try await repository.fetchItems(for: selectedDate, priority: .high)
+            mediumItems = try await repository.fetchItems(for: selectedDate, priority: .medium)
+            lowItems = try await repository.fetchItems(for: selectedDate, priority: .low)
+            doneItems = try await repository.fetchDoneItems(limit: doneListLimit)
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func selectDate(_ date: Date) async {
+        selectedDate = Calendar.current.startOfDay(for: date)
+        await loadAll()
     }
 
     func items(for priority: Priority) -> [TodoItem] {
@@ -60,6 +76,9 @@ final class HomeViewModel {
             try await repository.update(item)
             removeFromPriorityArray(item)
             doneItems.insert(item, at: 0)
+            if doneItems.count > doneListLimit {
+                doneItems.removeLast()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -68,6 +87,7 @@ final class HomeViewModel {
     func markUndone(_ item: TodoItem) async {
         item.isDone = false
         item.completedAt = nil
+        item.scheduledDate = selectedDate
         do {
             try await repository.update(item)
             doneItems.removeAll { $0.id == item.id }
@@ -83,7 +103,8 @@ final class HomeViewModel {
             title: title,
             priority: priority,
             reminderDate: reminderDate,
-            sortOrder: count
+            sortOrder: count,
+            scheduledDate: selectedDate
         )
         do {
             try await repository.add(item)
@@ -130,16 +151,13 @@ final class HomeViewModel {
         }
     }
 
-    /// Called when an item is dropped at a specific index in a priority container
     func handleDrop(itemID: UUID, toPriority: Priority, atIndex: Int) async {
-        // Find the item across all priorities
         let allItems = Priority.allCases.flatMap { items(for: $0) }
         guard let item = allItems.first(where: { $0.id == itemID }) else { return }
 
         let sourcePriority = item.priority
 
         if sourcePriority == toPriority {
-            // Reorder within same container
             var currentItems = items(for: toPriority)
             guard let fromIndex = currentItems.firstIndex(where: { $0.id == itemID }) else { return }
             let targetIndex = atIndex > fromIndex ? atIndex - 1 : atIndex
@@ -148,14 +166,12 @@ final class HomeViewModel {
             setItems(currentItems, for: toPriority)
             await reorder(ids: ids, in: toPriority)
         } else {
-            // Move across containers
             removeFromArray(for: sourcePriority, item: item)
             var targetItems = items(for: toPriority)
             let insertAt = min(atIndex, targetItems.count)
             item.priority = toPriority
             targetItems.insert(item, at: insertAt)
             setItems(targetItems, for: toPriority)
-            // Persist
             do {
                 try await repository.move(item, to: toPriority)
                 let ids = targetItems.map(\.id)
@@ -178,7 +194,47 @@ final class HomeViewModel {
         dropTarget = nil
     }
 
-    // MARK: - Targeted array helpers
+    // MARK: - Rollover & Materialization
+
+    /// Seconds until next midnight — used to schedule rollover timer
+    var secondsUntilMidnight: TimeInterval {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now))!
+        return tomorrow.timeIntervalSinceNow
+    }
+
+    func performRollover() async {
+        do {
+            try await repository.rolloverOverdueItems(to: .now)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func materializeRepeatingItems(using container: Any) async {
+        guard let range = weekDateRange() else { return }
+        do {
+            try await repository.materializeRepeatingItems(for: range, using: container)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func rescheduleItem(_ item: TodoItem, to date: Date) async {
+        do {
+            try await repository.reschedule(item, to: date)
+            removeFromPriorityArray(item)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func weekDateRange() -> ClosedRange<Date>? {
+        guard let first = weekDates.first, let last = weekDates.last else { return nil }
+        return first...last
+    }
 
     private func removeFromPriorityArray(_ item: TodoItem) {
         removeFromArray(for: item.priority, item: item)

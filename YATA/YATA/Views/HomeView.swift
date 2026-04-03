@@ -15,9 +15,12 @@ struct HomeView: View {
         }
         .task {
             if viewModel == nil {
-                let repo = LocalTodoRepository(modelContainer: modelContext.container)
+                let container = modelContext.container
+                let repo = LocalTodoRepository(modelContainer: container)
                 let vm = HomeViewModel(repository: repo)
                 viewModel = vm
+                await vm.performRollover()
+                await vm.materializeRepeatingItems(using: container)
                 await vm.loadAll()
             }
         }
@@ -25,15 +28,22 @@ struct HomeView: View {
 }
 
 private struct HomeContentView: View {
+    @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: HomeViewModel
+    @AppStorage("doneListSize") private var doneListSize = 25
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                Text("TO DO")
-                    .font(YATATheme.titleFont)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 4)
+                WeekStripView(
+                    weekDates: viewModel.weekDates,
+                    selectedDate: viewModel.selectedDate,
+                    onSelectDate: { date in
+                        Task {
+                            await viewModel.selectDate(date)
+                        }
+                    }
+                )
 
                 ForEach(Priority.allCases) { priority in
                     PriorityContainerView(
@@ -48,6 +58,9 @@ private struct HomeContentView: View {
         }
         .scrollIndicators(.hidden)
         .refreshable {
+            let container = modelContext.container
+            await viewModel.performRollover()
+            await viewModel.materializeRepeatingItems(using: container)
             await viewModel.loadAll()
         }
         .sheet(item: $viewModel.editingItem) { item in
@@ -60,6 +73,9 @@ private struct HomeContentView: View {
                 },
                 onDelete: {
                     Task { await viewModel.deleteItem(item) }
+                },
+                onReschedule: { date in
+                    Task { await viewModel.rescheduleItem(item, to: date) }
                 }
             )
         }
@@ -83,10 +99,28 @@ private struct HomeContentView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+        .onChange(of: doneListSize) {
+            viewModel.doneListLimit = doneListSize
+            Task { await viewModel.loadAll() }
+        }
+        .onAppear {
+            viewModel.doneListLimit = doneListSize
+        }
+        .task(id: "midnightRollover") {
+            while !Task.isCancelled {
+                let delay = viewModel.secondsUntilMidnight + 1 // 1s past midnight
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled else { break }
+                let container = modelContext.container
+                await viewModel.performRollover()
+                await viewModel.materializeRepeatingItems(using: container)
+                await viewModel.loadAll()
+            }
+        }
     }
 }
 
 #Preview {
     HomeView()
-        .modelContainer(for: TodoItem.self, inMemory: true)
+        .modelContainer(for: [TodoItem.self, RepeatingItem.self], inMemory: true)
 }
