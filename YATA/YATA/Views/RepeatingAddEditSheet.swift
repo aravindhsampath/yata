@@ -12,7 +12,19 @@ struct RepeatingAddEditSheet: View {
     @State private var selectedDayOfWeek: Weekday
     @State private var selectedDayOfMonth: Int
     @State private var selectedMonth: Int
+    @State private var activePicker: SchedulePicker?
     @FocusState private var isTitleFocused: Bool
+
+    private enum SchedulePicker: Identifiable {
+        case time, dayOfMonth, month
+        var id: String {
+            switch self {
+            case .time: "time"
+            case .dayOfMonth: "dayOfMonth"
+            case .month: "month"
+            }
+        }
+    }
 
     init(
         mode: RepeatingAddEditMode,
@@ -82,6 +94,9 @@ struct RepeatingAddEditSheet: View {
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
+            .sheet(item: $activePicker) { picker in
+                pickerSheet(for: picker)
+            }
         }
         .presentationDetents([.large])
         .task { isTitleFocused = true }
@@ -107,29 +122,41 @@ struct RepeatingAddEditSheet: View {
         }
     }
 
-    // MARK: - Conditional schedule pickers
+    // MARK: - Schedule section (frequency-dependent)
 
     private var scheduleSection: some View {
         VStack(alignment: .leading, spacing: 20) {
             switch frequency {
             case .daily, .everyWorkday:
-                timePicker
+                inlineTimePicker
 
             case .weekly:
                 dayOfWeekPicker
-                timePicker
+                inlineTimePicker
 
             case .monthly:
-                monthlyPickers
+                chipRow(
+                    items: [
+                        ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
+                        ("Time", formattedTime, .time),
+                    ]
+                )
 
             case .yearly:
-                yearlyPickers
+                chipRow(
+                    items: [
+                        ("Month", shortMonthName, .month),
+                        ("Day", "\(selectedDayOfMonth)", .dayOfMonth),
+                        ("Time", formattedTime, .time),
+                    ]
+                )
             }
         }
         .animation(.easeInOut(duration: 0.2), value: frequency)
     }
 
-    private var timePicker: some View {
+    // Full inline time picker for daily/workdays/weekly
+    private var inlineTimePicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Time")
                 .font(YATATheme.captionFont)
@@ -161,75 +188,80 @@ struct RepeatingAddEditSheet: View {
         }
     }
 
-    // Monthly: day of month + time side by side
-    private var monthlyPickers: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 0) {
-                Text("Day of Month")
-                Spacer()
-                Text("Time")
-            }
-            .font(YATATheme.captionFont)
-            .foregroundStyle(.secondary)
+    // MARK: - Tappable chip row
 
-            HStack(spacing: 0) {
-                Picker("Day", selection: $selectedDayOfMonth) {
-                    ForEach(1...28, id: \.self) { day in
-                        Text("\(day)").tag(day)
+    private func chipRow(items: [(label: String, value: String, picker: SchedulePicker)]) -> some View {
+        HStack(spacing: 12) {
+            ForEach(items, id: \.label) { item in
+                VStack(spacing: 6) {
+                    Text(item.label)
+                        .font(YATATheme.captionFont)
+                        .foregroundStyle(.secondary)
+
+                    Button(action: { activePicker = item.picker }) {
+                        Text(item.value)
+                            .font(.title3.weight(.medium).monospacedDigit())
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
                 }
-                .pickerStyle(.wheel)
-
-                DatePicker(
-                    "Time",
-                    selection: $scheduledTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .labelsHidden()
-                .datePickerStyle(.wheel)
             }
-            .frame(height: 120)
         }
     }
 
-    // Yearly: month + day + time side by side
-    private var yearlyPickers: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 0) {
-                Text("Month")
-                Spacer()
-                Text("Day")
-                Spacer()
-                Text("Time")
-            }
-            .font(YATATheme.captionFont)
-            .foregroundStyle(.secondary)
+    // MARK: - Picker sheets
 
-            HStack(spacing: 0) {
-                Picker("Month", selection: $selectedMonth) {
-                    ForEach(1...12, id: \.self) { m in
-                        Text(Calendar.current.shortMonthSymbols[m - 1]).tag(m)
+    @ViewBuilder
+    private func pickerSheet(for picker: SchedulePicker) -> some View {
+        NavigationStack {
+            VStack {
+                switch picker {
+                case .time:
+                    DatePicker(
+                        "Time",
+                        selection: $scheduledTime,
+                        displayedComponents: .hourAndMinute
+                    )
+                    .labelsHidden()
+                    .datePickerStyle(.wheel)
+
+                case .dayOfMonth:
+                    Picker("Day", selection: $selectedDayOfMonth) {
+                        ForEach(1...28, id: \.self) { day in
+                            Text("\(day)").tag(day)
+                        }
                     }
-                }
-                .pickerStyle(.wheel)
+                    .pickerStyle(.wheel)
 
-                Picker("Day", selection: $selectedDayOfMonth) {
-                    ForEach(1...28, id: \.self) { day in
-                        Text("\(day)").tag(day)
+                case .month:
+                    Picker("Month", selection: $selectedMonth) {
+                        ForEach(1...12, id: \.self) { m in
+                            Text(Calendar.current.monthSymbols[m - 1]).tag(m)
+                        }
                     }
+                    .pickerStyle(.wheel)
                 }
-                .pickerStyle(.wheel)
-
-                DatePicker(
-                    "Time",
-                    selection: $scheduledTime,
-                    displayedComponents: .hourAndMinute
-                )
-                .labelsHidden()
-                .datePickerStyle(.wheel)
             }
-            .frame(height: 120)
+            .padding()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { activePicker = nil }
+                }
+            }
         }
+        .presentationDetents([.height(280)])
+    }
+
+    // MARK: - Helpers
+
+    private var formattedTime: String {
+        scheduledTime.formatted(.dateTime.hour().minute())
+    }
+
+    private var shortMonthName: String {
+        Calendar.current.shortMonthSymbols[selectedMonth - 1]
     }
 
     // MARK: - Actions
