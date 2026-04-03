@@ -186,8 +186,8 @@ struct RepeatingAddEditSheet: View {
                                 .font(.title3.weight(.medium).monospacedDigit())
                                 .foregroundStyle(.primary)
                             Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
