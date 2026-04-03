@@ -49,10 +49,9 @@ struct RepeatingPillView: View {
                 .font(YATATheme.captionFont)
                 .foregroundStyle(.tertiary)
 
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .foregroundStyle(.secondary)
-            }
+            Button("Edit", systemImage: "pencil", action: onEdit)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)

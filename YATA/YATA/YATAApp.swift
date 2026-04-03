@@ -3,7 +3,7 @@ import SwiftData
 
 @main
 struct YATAApp: App {
-    @AppStorage("colorScheme") private var colorSchemePreference = 0
+    @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
 
     var body: some Scene {
         WindowGroup {
@@ -14,9 +14,9 @@ struct YATAApp: App {
     }
 
     private var resolvedColorScheme: ColorScheme? {
-        switch colorSchemePreference {
-        case 1: .light
-        case 2: .dark
+        switch ColorSchemePreference(rawValue: colorSchemePreference) {
+        case .light: .light
+        case .dark: .dark
         default: nil
         }
     }

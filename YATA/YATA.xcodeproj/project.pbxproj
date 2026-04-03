@@ -33,6 +33,10 @@
 		A10000010000000000000024 /* RepeatingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000024 /* RepeatingViewModel.swift */; };
 		A10000010000000000000025 /* RepeatingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000025 /* RepeatingPillView.swift */; };
 		A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000026 /* RepeatingAddEditSheet.swift */; };
+		A10000010000000000000027 /* ColorSchemePreference.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000027 /* ColorSchemePreference.swift */; };
+		A10000010000000000000028 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000028 /* AppTab.swift */; };
+		A10000010000000000000029 /* AddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000029 /* AddEditMode.swift */; };
+		A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000030 /* RepeatingAddEditMode.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +66,10 @@
 		A20000010000000000000024 /* RepeatingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingViewModel.swift; sourceTree = "<group>"; };
 		A20000010000000000000025 /* RepeatingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingPillView.swift; sourceTree = "<group>"; };
 		A20000010000000000000026 /* RepeatingAddEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAddEditSheet.swift; sourceTree = "<group>"; };
+		A20000010000000000000027 /* ColorSchemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemePreference.swift; sourceTree = "<group>"; };
+		A20000010000000000000028 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
+		A20000010000000000000029 /* AddEditMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEditMode.swift; sourceTree = "<group>"; };
+		A20000010000000000000030 /* RepeatingAddEditMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAddEditMode.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -106,6 +114,10 @@
 				A20000010000000000000003 /* Priority.swift */,
 				A20000010000000000000020 /* RepeatFrequency.swift */,
 				A20000010000000000000021 /* RepeatingItem.swift */,
+				A20000010000000000000027 /* ColorSchemePreference.swift */,
+				A20000010000000000000028 /* AppTab.swift */,
+				A20000010000000000000029 /* AddEditMode.swift */,
+				A20000010000000000000030 /* RepeatingAddEditMode.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -267,6 +279,10 @@
 				A10000010000000000000024 /* RepeatingViewModel.swift in Sources */,
 				A10000010000000000000025 /* RepeatingPillView.swift in Sources */,
 				A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */,
+				A10000010000000000000027 /* ColorSchemePreference.swift in Sources */,
+				A10000010000000000000028 /* AppTab.swift in Sources */,
+				A10000010000000000000029 /* AddEditMode.swift in Sources */,
+				A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -62,16 +62,17 @@ struct TodoPillView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .foregroundStyle(.secondary)
-            }
+            Button("Edit", systemImage: "pencil", action: onEdit)
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
         .frame(height: YATATheme.pillHeight)
         .contentShape(.capsule)
         .onTapGesture { markDone() }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Mark \(item.title) as done")
         .background(.regularMaterial, in: .capsule)
     }
 

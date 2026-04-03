@@ -11,6 +11,10 @@ final class RepeatingViewModel {
     var editingItem: RepeatingItem?
     var isAdding = false
     var errorMessage: String?
+    var hasError: Bool {
+        get { errorMessage != nil }
+        set { if !newValue { errorMessage = nil } }
+    }
 
     init(repository: any RepeatingRepository) {
         self.repository = repository

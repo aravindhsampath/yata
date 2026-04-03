@@ -14,6 +14,10 @@ final class HomeViewModel {
     var editingItem: TodoItem?
     var addingToPriority: Priority?
     var errorMessage: String?
+    var hasError: Bool {
+        get { errorMessage != nil }
+        set { if !newValue { errorMessage = nil } }
+    }
 
     // Drag state
     var draggingItemID: UUID?

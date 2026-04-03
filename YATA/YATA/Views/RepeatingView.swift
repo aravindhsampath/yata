@@ -85,10 +85,7 @@ private struct RepeatingContentView: View {
                 onDelete: nil
             )
         }
-        .alert("Error", isPresented: .init(
-            get: { viewModel.errorMessage != nil },
-            set: { if !$0 { viewModel.errorMessage = nil } }
-        )) {
+        .alert("Error", isPresented: $viewModel.hasError) {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")

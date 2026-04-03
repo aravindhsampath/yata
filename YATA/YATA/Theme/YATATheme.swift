@@ -5,14 +5,14 @@ enum YATATheme {
 
     static func backgroundColor(for priority: Priority) -> Color {
         switch priority {
-        case .high: Color("YATARed")
-        case .medium: Color("YATAYellow")
-        case .low: Color("YATAGreen")
+        case .high: Color(.yataRed)
+        case .medium: Color(.yataYellow)
+        case .low: Color(.yataGreen)
         }
     }
 
-    static let doneBackgroundColor = Color("YATADone")
-    static let repeatingBackgroundColor = Color("YATADone")
+    static let doneBackgroundColor = Color(.yataDone)
+    static let repeatingBackgroundColor = Color(.yataDone)
 
     static let pillFont: Font = .body.weight(.medium)
     static let titleFont: Font = .system(.title2, weight: .bold)

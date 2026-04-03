@@ -35,13 +35,6 @@ struct PriorityContainerView: View {
         }
         .padding(YATATheme.containerPadding)
         .containerStyle(color: YATATheme.backgroundColor(for: priority))
-        .overlay {
-            // Invisible geometry reader to capture item frames
-            GeometryReader { geo in
-                Color.clear
-                    .preference(key: ContainerFrameKey.self, value: geo.frame(in: .global))
-            }
-        }
         .onDrop(of: [UTType.text], delegate: PriorityDropDelegate(
             priority: priority,
             viewModel: viewModel
@@ -76,15 +69,6 @@ struct PriorityContainerView: View {
 
     private func addTapped() {
         viewModel.addingToPriority = priority
-    }
-}
-
-// MARK: - Preference key for container frame
-
-private struct ContainerFrameKey: PreferenceKey {
-    static let defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
     }
 }
 

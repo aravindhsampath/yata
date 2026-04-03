@@ -42,16 +42,17 @@ struct DoneSectionView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Button(action: { viewModel.editingItem = item }) {
-                Image(systemName: "pencil")
-                    .foregroundStyle(.secondary)
-            }
+            Button("Edit", systemImage: "pencil", action: { viewModel.editingItem = item })
+                .labelStyle(.iconOnly)
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
         .frame(height: YATATheme.pillHeight)
         .contentShape(.capsule)
         .onTapGesture { markUndone(item) }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Mark \(item.title) as not done")
         .background(.regularMaterial, in: .capsule)
     }
 

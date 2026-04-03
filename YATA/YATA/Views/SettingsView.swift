@@ -1,16 +1,23 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage("colorScheme") private var colorSchemePreference = 0
+    @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
+
+    private var selectedPreference: Binding<ColorSchemePreference> {
+        Binding(
+            get: { ColorSchemePreference(rawValue: colorSchemePreference) ?? .system },
+            set: { colorSchemePreference = $0.rawValue }
+        )
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Appearance") {
-                    Picker("Color Scheme", selection: $colorSchemePreference) {
-                        Text("System").tag(0)
-                        Text("Light").tag(1)
-                        Text("Dark").tag(2)
+                    Picker("Color Scheme", selection: selectedPreference) {
+                        ForEach(ColorSchemePreference.allCases) { pref in
+                            Text(pref.label).tag(pref)
+                        }
                     }
                     .pickerStyle(.segmented)
                 }

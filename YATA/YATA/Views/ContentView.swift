@@ -1,11 +1,5 @@
 import SwiftUI
 
-enum AppTab: Hashable {
-    case home
-    case repeating
-    case settings
-}
-
 struct ContentView: View {
     @State private var selectedTab = AppTab.home
 
