@@ -70,6 +70,7 @@ struct RepeatingAddEditSheet: View {
                 }
                 .padding()
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(isEditing ? "Edit Repeating" : "New Repeating")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -84,6 +85,9 @@ struct RepeatingAddEditSheet: View {
         }
         .presentationDetents([.large])
         .task { isTitleFocused = true }
+        .onChange(of: frequency) {
+            isTitleFocused = false
+        }
     }
 
     // MARK: - Frequency picker
@@ -106,7 +110,7 @@ struct RepeatingAddEditSheet: View {
     // MARK: - Conditional schedule pickers
 
     private var scheduleSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 20) {
             switch frequency {
             case .daily, .everyWorkday:
                 timePicker
@@ -116,13 +120,10 @@ struct RepeatingAddEditSheet: View {
                 timePicker
 
             case .monthly:
-                dayOfMonthPicker
-                timePicker
+                monthlyPickers
 
             case .yearly:
-                monthPicker
-                dayOfMonthPicker
-                timePicker
+                yearlyPickers
             }
         }
         .animation(.easeInOut(duration: 0.2), value: frequency)
@@ -160,35 +161,74 @@ struct RepeatingAddEditSheet: View {
         }
     }
 
-    private var dayOfMonthPicker: some View {
+    // Monthly: day of month + time side by side
+    private var monthlyPickers: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Day of Month")
-                .font(YATATheme.captionFont)
-                .foregroundStyle(.secondary)
-
-            Picker("Day", selection: $selectedDayOfMonth) {
-                ForEach(1...28, id: \.self) { day in
-                    Text("\(day)").tag(day)
-                }
+            HStack(spacing: 0) {
+                Text("Day of Month")
+                Spacer()
+                Text("Time")
             }
-            .pickerStyle(.wheel)
-            .frame(height: 100)
+            .font(YATATheme.captionFont)
+            .foregroundStyle(.secondary)
+
+            HStack(spacing: 0) {
+                Picker("Day", selection: $selectedDayOfMonth) {
+                    ForEach(1...28, id: \.self) { day in
+                        Text("\(day)").tag(day)
+                    }
+                }
+                .pickerStyle(.wheel)
+
+                DatePicker(
+                    "Time",
+                    selection: $scheduledTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+            }
+            .frame(height: 120)
         }
     }
 
-    private var monthPicker: some View {
+    // Yearly: month + day + time side by side
+    private var yearlyPickers: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Month")
-                .font(YATATheme.captionFont)
-                .foregroundStyle(.secondary)
-
-            Picker("Month", selection: $selectedMonth) {
-                ForEach(1...12, id: \.self) { m in
-                    Text(Calendar.current.monthSymbols[m - 1]).tag(m)
-                }
+            HStack(spacing: 0) {
+                Text("Month")
+                Spacer()
+                Text("Day")
+                Spacer()
+                Text("Time")
             }
-            .pickerStyle(.wheel)
-            .frame(height: 100)
+            .font(YATATheme.captionFont)
+            .foregroundStyle(.secondary)
+
+            HStack(spacing: 0) {
+                Picker("Month", selection: $selectedMonth) {
+                    ForEach(1...12, id: \.self) { m in
+                        Text(Calendar.current.shortMonthSymbols[m - 1]).tag(m)
+                    }
+                }
+                .pickerStyle(.wheel)
+
+                Picker("Day", selection: $selectedDayOfMonth) {
+                    ForEach(1...28, id: \.self) { day in
+                        Text("\(day)").tag(day)
+                    }
+                }
+                .pickerStyle(.wheel)
+
+                DatePicker(
+                    "Time",
+                    selection: $scheduledTime,
+                    displayedComponents: .hourAndMinute
+                )
+                .labelsHidden()
+                .datePickerStyle(.wheel)
+            }
+            .frame(height: 120)
         }
     }
 
