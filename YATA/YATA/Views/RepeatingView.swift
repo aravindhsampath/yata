@@ -59,10 +59,13 @@ private struct RepeatingContentView: View {
         .sheet(item: $viewModel.editingItem) { item in
             RepeatingAddEditSheet(
                 mode: .edit(item),
-                onSave: { title, frequency, time in
+                onSave: { title, frequency, time, dayOfWeek, dayOfMonth, month in
                     item.title = title
                     item.frequency = frequency
                     item.scheduledTime = time
+                    item.scheduledDayOfWeek = dayOfWeek
+                    item.scheduledDayOfMonth = dayOfMonth
+                    item.scheduledMonth = month
                     Task { await viewModel.updateItem(item) }
                 },
                 onDelete: {
@@ -73,12 +76,15 @@ private struct RepeatingContentView: View {
         .sheet(isPresented: $viewModel.isAdding) {
             RepeatingAddEditSheet(
                 mode: .add,
-                onSave: { title, frequency, time in
+                onSave: { title, frequency, time, dayOfWeek, dayOfMonth, month in
                     Task {
                         await viewModel.addItem(
                             title: title,
                             frequency: frequency,
-                            scheduledTime: time
+                            scheduledTime: time,
+                            dayOfWeek: dayOfWeek,
+                            dayOfMonth: dayOfMonth,
+                            month: month
                         )
                     }
                 },

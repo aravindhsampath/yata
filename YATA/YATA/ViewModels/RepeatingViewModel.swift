@@ -30,11 +30,21 @@ final class RepeatingViewModel {
         }
     }
 
-    func addItem(title: String, frequency: RepeatFrequency, scheduledTime: Date) async {
+    func addItem(
+        title: String,
+        frequency: RepeatFrequency,
+        scheduledTime: Date,
+        dayOfWeek: Int? = nil,
+        dayOfMonth: Int? = nil,
+        month: Int? = nil
+    ) async {
         let item = RepeatingItem(
             title: title,
             frequency: frequency,
             scheduledTime: scheduledTime,
+            scheduledDayOfWeek: dayOfWeek,
+            scheduledDayOfMonth: dayOfMonth,
+            scheduledMonth: month,
             sortOrder: items.count
         )
         do {

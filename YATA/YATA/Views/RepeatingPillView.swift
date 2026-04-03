@@ -41,7 +41,7 @@ struct RepeatingPillView: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text(item.scheduledTime, format: .dateTime.hour().minute())
+            Text(item.scheduleSummary)
                 .font(YATATheme.captionFont)
                 .foregroundStyle(.secondary)
 

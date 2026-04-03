@@ -37,6 +37,7 @@
 		A10000010000000000000028 /* AppTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000028 /* AppTab.swift */; };
 		A10000010000000000000029 /* AddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000029 /* AddEditMode.swift */; };
 		A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000030 /* RepeatingAddEditMode.swift */; };
+		A10000010000000000000031 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000031 /* Weekday.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +71,7 @@
 		A20000010000000000000028 /* AppTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTab.swift; sourceTree = "<group>"; };
 		A20000010000000000000029 /* AddEditMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEditMode.swift; sourceTree = "<group>"; };
 		A20000010000000000000030 /* RepeatingAddEditMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAddEditMode.swift; sourceTree = "<group>"; };
+		A20000010000000000000031 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weekday.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -118,6 +120,7 @@
 				A20000010000000000000028 /* AppTab.swift */,
 				A20000010000000000000029 /* AddEditMode.swift */,
 				A20000010000000000000030 /* RepeatingAddEditMode.swift */,
+				A20000010000000000000031 /* Weekday.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -283,6 +286,7 @@
 				A10000010000000000000028 /* AppTab.swift in Sources */,
 				A10000010000000000000029 /* AddEditMode.swift in Sources */,
 				A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */,
+				A10000010000000000000031 /* Weekday.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
