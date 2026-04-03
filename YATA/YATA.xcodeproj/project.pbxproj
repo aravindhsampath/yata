@@ -26,6 +26,13 @@
 		A10000010000000000000017 /* YATATheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000017 /* YATATheme.swift */; };
 		A10000010000000000000018 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000018 /* HapticManager.swift */; };
 		A10000010000000000000019 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000019 /* Assets.xcassets */; };
+		A10000010000000000000020 /* RepeatFrequency.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000020 /* RepeatFrequency.swift */; };
+		A10000010000000000000021 /* RepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000021 /* RepeatingItem.swift */; };
+		A10000010000000000000022 /* RepeatingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000022 /* RepeatingRepository.swift */; };
+		A10000010000000000000023 /* LocalRepeatingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000023 /* LocalRepeatingRepository.swift */; };
+		A10000010000000000000024 /* RepeatingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000024 /* RepeatingViewModel.swift */; };
+		A10000010000000000000025 /* RepeatingPillView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000025 /* RepeatingPillView.swift */; };
+		A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000026 /* RepeatingAddEditSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +55,13 @@
 		A20000010000000000000017 /* YATATheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATheme.swift; sourceTree = "<group>"; };
 		A20000010000000000000018 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
 		A20000010000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000010000000000000020 /* RepeatFrequency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatFrequency.swift; sourceTree = "<group>"; };
+		A20000010000000000000021 /* RepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItem.swift; sourceTree = "<group>"; };
+		A20000010000000000000022 /* RepeatingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingRepository.swift; sourceTree = "<group>"; };
+		A20000010000000000000023 /* LocalRepeatingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalRepeatingRepository.swift; sourceTree = "<group>"; };
+		A20000010000000000000024 /* RepeatingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingViewModel.swift; sourceTree = "<group>"; };
+		A20000010000000000000025 /* RepeatingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingPillView.swift; sourceTree = "<group>"; };
+		A20000010000000000000026 /* RepeatingAddEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAddEditSheet.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -90,6 +104,8 @@
 			children = (
 				A20000010000000000000002 /* TodoItem.swift */,
 				A20000010000000000000003 /* Priority.swift */,
+				A20000010000000000000020 /* RepeatFrequency.swift */,
+				A20000010000000000000021 /* RepeatingItem.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -100,6 +116,8 @@
 				A20000010000000000000004 /* TodoRepository.swift */,
 				A20000010000000000000005 /* LocalTodoRepository.swift */,
 				A20000010000000000000006 /* APITodoRepository.swift */,
+				A20000010000000000000022 /* RepeatingRepository.swift */,
+				A20000010000000000000023 /* LocalRepeatingRepository.swift */,
 			);
 			path = Repository;
 			sourceTree = "<group>";
@@ -108,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000010000000000000007 /* HomeViewModel.swift */,
+				A20000010000000000000024 /* RepeatingViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -124,6 +143,8 @@
 				A20000010000000000000014 /* DoneSectionView.swift */,
 				A20000010000000000000015 /* RepeatingView.swift */,
 				A20000010000000000000016 /* SettingsView.swift */,
+				A20000010000000000000025 /* RepeatingPillView.swift */,
+				A20000010000000000000026 /* RepeatingAddEditSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -239,6 +260,13 @@
 				A10000010000000000000016 /* SettingsView.swift in Sources */,
 				A10000010000000000000017 /* YATATheme.swift in Sources */,
 				A10000010000000000000018 /* HapticManager.swift in Sources */,
+				A10000010000000000000020 /* RepeatFrequency.swift in Sources */,
+				A10000010000000000000021 /* RepeatingItem.swift in Sources */,
+				A10000010000000000000022 /* RepeatingRepository.swift in Sources */,
+				A10000010000000000000023 /* LocalRepeatingRepository.swift in Sources */,
+				A10000010000000000000024 /* RepeatingViewModel.swift in Sources */,
+				A10000010000000000000025 /* RepeatingPillView.swift in Sources */,
+				A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

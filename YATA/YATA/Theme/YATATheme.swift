@@ -12,6 +12,7 @@ enum YATATheme {
     }
 
     static let doneBackgroundColor = Color("YATADone")
+    static let repeatingBackgroundColor = Color("YATADone")
 
     static let pillFont: Font = .body.weight(.medium)
     static let titleFont: Font = .system(.title2, weight: .bold)

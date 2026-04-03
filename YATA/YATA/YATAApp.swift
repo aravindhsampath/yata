@@ -10,7 +10,7 @@ struct YATAApp: App {
             ContentView()
                 .preferredColorScheme(resolvedColorScheme)
         }
-        .modelContainer(for: TodoItem.self)
+        .modelContainer(for: [TodoItem.self, RepeatingItem.self])
     }
 
     private var resolvedColorScheme: ColorScheme? {
