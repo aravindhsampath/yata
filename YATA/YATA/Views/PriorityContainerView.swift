@@ -68,10 +68,10 @@ struct PriorityContainerView: View {
 
     private var insertionIndicator: some View {
         Capsule()
-            .fill(Color.accentColor.opacity(0.6))
-            .frame(height: 3)
-            .padding(.horizontal, 8)
-            .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .center)))
+            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+            .foregroundStyle(.secondary.opacity(0.5))
+            .frame(height: YATATheme.pillHeight)
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
 
     private func addTapped() {
