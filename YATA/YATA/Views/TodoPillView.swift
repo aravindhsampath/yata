@@ -38,12 +38,30 @@ struct TodoPillView: View {
             onDragStart()
             return NSItemProvider(object: item.id.uuidString as NSString)
         } preview: {
-            Text(item.title)
-                .font(YATATheme.pillFont)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: .capsule)
-                .shadow(radius: 8)
+            HStack(spacing: 6) {
+                Text(item.title)
+                    .font(YATATheme.pillFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                if let date = item.reminderDate {
+                    Image(systemName: "bell.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
+                        .font(YATATheme.captionFont)
+                        .foregroundStyle(.secondary)
+                }
+
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .frame(width: 340, height: YATATheme.pillHeight)
+            .background(.regularMaterial, in: .capsule)
+            .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
         }
         .sensoryFeedback(.impact(weight: .medium), trigger: triggerDragHaptic)
         .sensoryFeedback(.success, trigger: triggerDoneHaptic)
