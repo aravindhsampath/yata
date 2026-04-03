@@ -45,7 +45,8 @@ final class HomeViewModel {
         item.completedAt = .now
         do {
             try await repository.update(item)
-            await loadAll()
+            removeFromPriorityArray(item)
+            doneItems.insert(item, at: 0)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -56,7 +57,8 @@ final class HomeViewModel {
         item.completedAt = nil
         do {
             try await repository.update(item)
-            await loadAll()
+            doneItems.removeAll { $0.id == item.id }
+            appendToPriorityArray(item)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -72,7 +74,7 @@ final class HomeViewModel {
         )
         do {
             try await repository.add(item)
-            await loadAll()
+            appendToPriorityArray(item)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -81,7 +83,6 @@ final class HomeViewModel {
     func updateItem(_ item: TodoItem) async {
         do {
             try await repository.update(item)
-            await loadAll()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -90,7 +91,8 @@ final class HomeViewModel {
     func deleteItem(_ item: TodoItem) async {
         do {
             try await repository.delete(item)
-            await loadAll()
+            removeFromPriorityArray(item)
+            doneItems.removeAll { $0.id == item.id }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -99,18 +101,45 @@ final class HomeViewModel {
     func reorder(ids: [UUID], in priority: Priority) async {
         do {
             try await repository.reorder(ids: ids, in: priority)
-            await loadAll()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     func moveItem(_ item: TodoItem, to priority: Priority) async {
+        let sourcePriority = item.priority
         do {
             try await repository.move(item, to: priority)
-            await loadAll()
+            removeFromArray(for: sourcePriority, item: item)
+            appendToArray(for: priority, item: item)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: - Targeted array helpers
+
+    private func removeFromPriorityArray(_ item: TodoItem) {
+        removeFromArray(for: item.priority, item: item)
+    }
+
+    private func appendToPriorityArray(_ item: TodoItem) {
+        appendToArray(for: item.priority, item: item)
+    }
+
+    private func removeFromArray(for priority: Priority, item: TodoItem) {
+        switch priority {
+        case .high: highItems.removeAll { $0.id == item.id }
+        case .medium: mediumItems.removeAll { $0.id == item.id }
+        case .low: lowItems.removeAll { $0.id == item.id }
+        }
+    }
+
+    private func appendToArray(for priority: Priority, item: TodoItem) {
+        switch priority {
+        case .high: highItems.append(item)
+        case .medium: mediumItems.append(item)
+        case .low: lowItems.append(item)
         }
     }
 }

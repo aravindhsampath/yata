@@ -3,7 +3,9 @@ import SwiftData
 
 @Model
 final class TodoItem {
-    var id: UUID = UUID()
+    #Index<TodoItem>([\.isDone, \.priorityRawValue, \.sortOrder])
+
+    @Attribute(.unique) var id: UUID = UUID()
     var title: String = ""
     var priorityRawValue: Int = 1
     var isDone: Bool = false

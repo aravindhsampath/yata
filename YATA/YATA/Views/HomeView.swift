@@ -29,7 +29,7 @@ private struct HomeContentView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 16) {
+            LazyVStack(spacing: 16) {
                 Text("TO DO")
                     .font(YATATheme.titleFont)
                     .frame(maxWidth: .infinity, alignment: .center)
