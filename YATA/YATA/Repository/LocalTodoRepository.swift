@@ -107,24 +107,39 @@ final class LocalTodoRepository: TodoRepository {
         let repeatingContext = ModelContext(modelContainer)
         let repeatingDescriptor = FetchDescriptor<RepeatingItem>()
         let rules = try repeatingContext.fetch(repeatingDescriptor)
+        guard !rules.isEmpty else { return }
 
         let calendar = Calendar.current
+        let rangeStart = dateRange.lowerBound
+        let rangeEnd = calendar.date(byAdding: .day, value: 1, to: dateRange.upperBound)!
 
+        // Single batch query: fetch all existing occurrences in range
+        let existingPredicate = #Predicate<TodoItem> { item in
+            item.sourceRepeatingID != nil
+                && item.scheduledDate >= rangeStart
+                && item.scheduledDate < rangeEnd
+        }
+        let existingOccurrences = try modelContext.fetch(
+            FetchDescriptor<TodoItem>(predicate: existingPredicate)
+        )
+
+        // Build lookup: (ruleID, dateString) for O(1) membership check
+        var existingKeys = Set<String>()
+        for item in existingOccurrences {
+            if let ruleID = item.sourceRepeatingID {
+                let dayString = calendar.startOfDay(for: item.scheduledDate).timeIntervalSince1970
+                existingKeys.insert("\(ruleID)-\(dayString)")
+            }
+        }
+
+        var didInsert = false
         for rule in rules {
             let firingDates = computeFiringDates(for: rule, in: dateRange, calendar: calendar)
 
             for firingDate in firingDates {
                 let dayStart = calendar.startOfDay(for: firingDate)
-                let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
-                let ruleID = rule.id
-
-                let predicate = #Predicate<TodoItem> { item in
-                    item.sourceRepeatingID == ruleID
-                        && item.scheduledDate >= dayStart
-                        && item.scheduledDate < dayEnd
-                }
-                let existing = try modelContext.fetchCount(FetchDescriptor<TodoItem>(predicate: predicate))
-                guard existing == 0 else { continue }
+                let key = "\(rule.id)-\(dayStart.timeIntervalSince1970)"
+                guard !existingKeys.contains(key) else { continue }
 
                 let occurrence = TodoItem(
                     title: rule.title,
@@ -134,9 +149,13 @@ final class LocalTodoRepository: TodoRepository {
                     sourceRepeatingID: rule.id
                 )
                 modelContext.insert(occurrence)
+                existingKeys.insert(key)
+                didInsert = true
             }
         }
-        try modelContext.save()
+        if didInsert {
+            try modelContext.save()
+        }
     }
 
     // MARK: - Reschedule
