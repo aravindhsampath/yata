@@ -35,7 +35,7 @@ private struct HomeContentView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 4)
 
-                ForEach(Priority.allCases.reversed()) { priority in
+                ForEach(Priority.allCases) { priority in
                     PriorityContainerView(
                         priority: priority,
                         viewModel: viewModel
