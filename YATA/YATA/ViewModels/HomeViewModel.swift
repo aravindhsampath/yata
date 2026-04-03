@@ -56,8 +56,11 @@ final class HomeViewModel {
         }
     }
 
-    func selectDate(_ date: Date) async {
+    func selectDate(_ date: Date, using container: Any? = nil) async {
         selectedDate = Calendar.current.startOfDay(for: date)
+        if let container {
+            await materializeRepeatingItems(using: container)
+        }
         await loadAll()
     }
 

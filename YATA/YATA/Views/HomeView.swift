@@ -40,7 +40,7 @@ private struct HomeContentView: View {
                     selectedDate: viewModel.selectedDate,
                     onSelectDate: { date in
                         Task {
-                            await viewModel.selectDate(date)
+                            await viewModel.selectDate(date, using: modelContext.container)
                         }
                     }
                 )
@@ -105,6 +105,11 @@ private struct HomeContentView: View {
         }
         .onAppear {
             viewModel.doneListLimit = doneListSize
+            Task {
+                let container = modelContext.container
+                await viewModel.materializeRepeatingItems(using: container)
+                await viewModel.loadAll()
+            }
         }
         .task(id: "midnightRollover") {
             while !Task.isCancelled {
