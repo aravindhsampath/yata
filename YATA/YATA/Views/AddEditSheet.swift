@@ -94,13 +94,15 @@ struct AddEditSheet: View {
     private var reminderRow: some View {
         HStack {
             if let date = reminderDate {
-                Label {
-                    Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
-                } icon: {
-                    Image(systemName: "bell.fill")
+                Button(action: showReminder) {
+                    Label {
+                        Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
+                    } icon: {
+                        Image(systemName: "bell.fill")
+                    }
+                    .font(YATATheme.captionFont)
+                    .foregroundStyle(.secondary)
                 }
-                .font(YATATheme.captionFont)
-                .foregroundStyle(.secondary)
 
                 Spacer()
 
