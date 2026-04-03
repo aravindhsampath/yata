@@ -9,7 +9,6 @@ struct TodoPillView: View {
     @State private var dragOffset: Double = 0
     @State private var triggerDeleteHaptic = false
     @State private var triggerDoneHaptic = false
-    @State private var triggerDragHaptic = false
 
     private let deleteThreshold: Double = -150
 
@@ -38,17 +37,18 @@ struct TodoPillView: View {
                 .padding(.vertical, 8)
                 .background(.regularMaterial, in: .capsule)
         }
-        .sensoryFeedback(.impact(weight: .medium), trigger: triggerDragHaptic)
         .sensoryFeedback(.success, trigger: triggerDoneHaptic)
         .sensoryFeedback(.warning, trigger: triggerDeleteHaptic)
     }
 
     private var pillContent: some View {
         HStack(spacing: 6) {
-            Button(item.title, action: markDone)
+            Text(item.title)
                 .font(YATATheme.pillFont)
                 .foregroundStyle(.primary)
                 .lineLimit(1)
+
+            Spacer()
 
             if let date = item.reminderDate {
                 Image(systemName: "bell.fill")
@@ -59,14 +59,16 @@ struct TodoPillView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Spacer()
-
-            Button("Edit", systemImage: "pencil", action: onEdit)
-                .labelStyle(.iconOnly)
-                .foregroundStyle(.secondary)
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
         .frame(height: YATATheme.pillHeight)
+        .contentShape(.capsule)
+        .onTapGesture { markDone() }
         .background(.regularMaterial, in: .capsule)
     }
 

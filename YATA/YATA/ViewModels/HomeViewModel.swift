@@ -51,6 +51,17 @@ final class HomeViewModel {
         }
     }
 
+    func markUndone(_ item: TodoItem) async {
+        item.isDone = false
+        item.completedAt = nil
+        do {
+            try await repository.update(item)
+            await loadAll()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func addItem(title: String, priority: Priority, reminderDate: Date?) async {
         let count = items(for: priority).count
         let item = TodoItem(

@@ -6,15 +6,12 @@ struct HomeView: View {
     @State private var viewModel: HomeViewModel?
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let viewModel {
-                    HomeContentView(viewModel: viewModel)
-                } else {
-                    ProgressView()
-                }
+        Group {
+            if let viewModel {
+                HomeContentView(viewModel: viewModel)
+            } else {
+                ProgressView()
             }
-            .navigationTitle("TO DO")
         }
         .task {
             if viewModel == nil {
@@ -33,6 +30,11 @@ private struct HomeContentView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 16) {
+                Text("TO DO")
+                    .font(YATATheme.titleFont)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 4)
+
                 ForEach(Priority.allCases.reversed()) { priority in
                     PriorityContainerView(
                         priority: priority,

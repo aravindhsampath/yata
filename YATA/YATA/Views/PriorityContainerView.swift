@@ -17,22 +17,25 @@ struct PriorityContainerView: View {
             }
         }
         .padding(YATATheme.containerPadding)
-        .background(
-            YATATheme.backgroundColor(for: priority),
-            in: .rect(cornerRadius: YATATheme.containerCornerRadius)
-        )
+        .containerStyle(color: YATATheme.backgroundColor(for: priority))
         .dropDestination(for: String.self) { droppedIDs, _ in
             handleDrop(droppedIDs)
         }
     }
 
     private var addButton: some View {
-        Button("Add", systemImage: "plus", action: addTapped)
+        Button(action: addTapped) {
+            HStack {
+                Image(systemName: "plus")
+                Text("Add")
+            }
             .font(YATATheme.pillFont)
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity)
             .frame(height: YATATheme.pillHeight)
-            .background(.regularMaterial, in: .capsule)
+            .contentShape(.capsule)
+        }
+        .background(.regularMaterial, in: .capsule)
     }
 
     private func addTapped() {
@@ -43,13 +46,11 @@ struct PriorityContainerView: View {
         guard let idString = droppedIDs.first,
               let uuid = UUID(uuidString: idString) else { return false }
 
-        // Check if item is already in this priority (reorder) or from another (move)
         let existsInSamePriority = viewModel.items(for: priority).contains { $0.id == uuid }
 
         if existsInSamePriority {
-            return true // Reorder handled by drag gestures
+            return true
         } else {
-            // Find the item across all priorities
             let allItems = Priority.allCases.flatMap { viewModel.items(for: $0) }
             guard let item = allItems.first(where: { $0.id == uuid }) else { return false }
             Task { await viewModel.moveItem(item, to: priority) }

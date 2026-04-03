@@ -1,58 +1,62 @@
 import SwiftUI
 
 struct DoneSectionView: View {
-    let viewModel: HomeViewModel
+    @Bindable var viewModel: HomeViewModel
 
-    @State private var isExpanded = false
+    @State private var triggerUndoneHaptic = false
 
     var body: some View {
         if !viewModel.doneItems.isEmpty {
             VStack(alignment: .leading, spacing: YATATheme.pillSpacing) {
-                Button(action: toggleExpanded) {
-                    HStack {
-                        Text("Done")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .foregroundStyle(.secondary)
-                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    }
-                }
-                .padding(.horizontal, 4)
+                Text("Done")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
 
-                if isExpanded {
-                    ForEach(viewModel.doneItems) { item in
-                        doneRow(item)
-                    }
+                ForEach(viewModel.doneItems) { item in
+                    doneRow(item)
                 }
             }
             .padding(YATATheme.containerPadding)
-            .animation(.easeInOut(duration: 0.2), value: isExpanded)
+            .containerStyle(color: YATATheme.doneBackgroundColor)
+            .sensoryFeedback(.success, trigger: triggerUndoneHaptic)
         }
     }
 
     private func doneRow(_ item: TodoItem) -> some View {
-        HStack {
+        HStack(spacing: 6) {
             Text(item.title)
                 .font(YATATheme.pillFont)
                 .strikethrough()
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
 
             Spacer()
 
-            if let completedAt = item.completedAt {
-                Text(completedAt, format: .dateTime.month(.abbreviated).day())
+            if let date = item.reminderDate {
+                Image(systemName: "bell.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
                     .font(YATATheme.captionFont)
                     .foregroundStyle(.tertiary)
             }
+
+            Button(action: { viewModel.editingItem = item }) {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
         .frame(height: YATATheme.pillHeight)
-        .background(.quaternary, in: .capsule)
+        .contentShape(.capsule)
+        .onTapGesture { markUndone(item) }
+        .background(.regularMaterial, in: .capsule)
     }
 
-    private func toggleExpanded() {
-        isExpanded.toggle()
+    private func markUndone(_ item: TodoItem) {
+        triggerUndoneHaptic.toggle()
+        Task { await viewModel.markUndone(item) }
     }
 }
