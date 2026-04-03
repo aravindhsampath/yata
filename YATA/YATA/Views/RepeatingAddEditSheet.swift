@@ -181,12 +181,17 @@ struct RepeatingAddEditSheet: View {
                         .foregroundStyle(.secondary)
 
                     Button(action: { activePicker = item.picker }) {
-                        Text(item.value)
-                            .font(.title3.weight(.medium).monospacedDigit())
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(.quaternary, in: .rect(cornerRadius: 10))
+                        HStack(spacing: 6) {
+                            Text(item.value)
+                                .font(.title3.weight(.medium).monospacedDigit())
+                                .foregroundStyle(.primary)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(.quaternary, in: .rect(cornerRadius: 10))
                     }
                 }
             }
