@@ -106,6 +106,10 @@ struct ContainerStyle: ViewModifier {
                 radius: YATATheme.containerShadowRadius,
                 y: YATATheme.containerShadowY
             )
+            .shadow(
+                color: colorScheme == .dark ? backgroundColor.opacity(0.35) : .clear,
+                radius: colorScheme == .dark ? 12 : 0
+            )
     }
 }
 
