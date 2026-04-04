@@ -5,9 +5,9 @@ enum YATATheme {
 
     static func backgroundColor(for priority: Priority) -> Color {
         switch priority {
-        case .high: Color(.yataRed)
+        case .high: Color(.yataGreen)
         case .medium: Color(.yataYellow)
-        case .low: Color(.yataGreen)
+        case .low: Color(.yataRed)
         }
     }
 

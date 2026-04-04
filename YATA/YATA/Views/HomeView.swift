@@ -50,7 +50,7 @@ private struct HomeContentView: View {
                 if sizeClass == .regular {
                     // iPad: side-by-side Kanban layout
                     HStack(alignment: .top, spacing: 12) {
-                        ForEach(Priority.allCases) { priority in
+                        ForEach(Priority.allCases.reversed()) { priority in
                             PriorityContainerView(
                                 priority: priority,
                                 viewModel: viewModel
@@ -60,7 +60,7 @@ private struct HomeContentView: View {
                     }
                 } else {
                     // iPhone: vertical stack
-                    ForEach(Priority.allCases) { priority in
+                    ForEach(Priority.allCases.reversed()) { priority in
                         PriorityContainerView(
                             priority: priority,
                             viewModel: viewModel

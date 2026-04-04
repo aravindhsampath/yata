@@ -3,7 +3,6 @@ import UniformTypeIdentifiers
 
 struct TodoPillView: View {
     let item: TodoItem
-    let isDragging: Bool
     let justDropped: Bool
     let lanePriority: Priority
     let onMarkDone: () -> Void
@@ -52,7 +51,6 @@ struct TodoPillView: View {
                 .offset(x: dragOffset)
                 .gesture(swipeGesture)
         }
-        .opacity(isDragging ? 0.3 : 1.0)
         .shadow(
             color: justDropped ? YATATheme.backgroundColor(for: lanePriority).opacity(0.8) : .clear,
             radius: justDropped ? 8 : 0

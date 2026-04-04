@@ -197,6 +197,8 @@ final class HomeViewModel {
     }
 
     func handleDrop(itemID: UUID, toPriority: Priority, atIndex: Int) async {
+        defer { draggingItemID = nil; dropTarget = nil }
+
         let allItems = Priority.allCases.flatMap { items(for: $0) }
         guard let item = allItems.first(where: { $0.id == itemID }) else { return }
 
@@ -207,9 +209,7 @@ final class HomeViewModel {
             guard let fromIndex = currentItems.firstIndex(where: { $0.id == itemID }) else { return }
             let targetIndex = atIndex > fromIndex ? atIndex - 1 : atIndex
             currentItems.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: targetIndex > fromIndex ? targetIndex + 1 : targetIndex)
-            let ids = currentItems.map(\.id)
             setItems(currentItems, for: toPriority)
-            await reorder(ids: ids, in: toPriority)
         } else {
             removeFromArray(for: sourcePriority, item: item)
             var targetItems = items(for: toPriority)
@@ -217,18 +217,24 @@ final class HomeViewModel {
             item.priority = toPriority
             targetItems.insert(item, at: insertAt)
             setItems(targetItems, for: toPriority)
+        }
+
+        justDroppedItemID = itemID
+
+        // Persist to database
+        if sourcePriority == toPriority {
+            let ids = items(for: toPriority).map(\.id)
+            await reorder(ids: ids, in: toPriority)
+        } else {
             do {
                 try await repository.move(item, to: toPriority)
-                let ids = targetItems.map(\.id)
+                let ids = items(for: toPriority).map(\.id)
                 try await repository.reorder(ids: ids, in: toPriority)
             } catch {
                 errorMessage = error.localizedDescription
             }
         }
 
-        justDroppedItemID = itemID
-        draggingItemID = nil
-        dropTarget = nil
         Task {
             try? await Task.sleep(for: .milliseconds(400))
             justDroppedItemID = nil

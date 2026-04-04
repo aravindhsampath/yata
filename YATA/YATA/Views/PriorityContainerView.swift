@@ -25,7 +25,6 @@ struct PriorityContainerView: View {
 
                 TodoPillView(
                     item: item,
-                    isDragging: viewModel.draggingItemID == item.id,
                     justDropped: viewModel.justDroppedItemID == item.id,
                     lanePriority: priority,
                     onMarkDone: { Task { await viewModel.markDone(item) } },
@@ -115,12 +114,14 @@ private struct PriorityDropDelegate: DropDelegate {
         }
 
         let targetIndex = viewModel.dropTarget?.index ?? viewModel.items(for: priority).count
-        // Clear visual state immediately so pill doesn't stay faded
-        viewModel.endDrag()
+        viewModel.dropTarget = nil // Hide insertion indicator immediately
 
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let idString = object as? String,
-                  let uuid = UUID(uuidString: idString) else { return }
+                  let uuid = UUID(uuidString: idString) else {
+                Task { @MainActor in viewModel.endDrag() }
+                return
+            }
             Task { @MainActor in
                 await viewModel.handleDrop(itemID: uuid, toPriority: priority, atIndex: targetIndex)
             }
