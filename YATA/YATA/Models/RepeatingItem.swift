@@ -40,6 +40,39 @@ final class RepeatingItem {
         }
     }
 
+    var nextOccurrenceLabel: String {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        // Search up to 366 days ahead
+        for dayOffset in 0..<366 {
+            guard let candidate = calendar.date(byAdding: .day, value: dayOffset, to: today) else { continue }
+            let shouldFire: Bool
+            switch frequency {
+            case .daily:
+                shouldFire = true
+            case .everyWorkday:
+                let weekday = calendar.component(.weekday, from: candidate)
+                shouldFire = (2...6).contains(weekday)
+            case .weekly:
+                let weekday = calendar.component(.weekday, from: candidate)
+                shouldFire = weekday == (scheduledDayOfWeek ?? 2)
+            case .monthly:
+                let day = calendar.component(.day, from: candidate)
+                shouldFire = day == (scheduledDayOfMonth ?? 1)
+            case .yearly:
+                let month = calendar.component(.month, from: candidate)
+                let day = calendar.component(.day, from: candidate)
+                shouldFire = month == (scheduledMonth ?? 1) && day == (scheduledDayOfMonth ?? 1)
+            }
+            if shouldFire {
+                if calendar.isDateInToday(candidate) { return "Next: Today" }
+                if calendar.isDateInTomorrow(candidate) { return "Next: Tomorrow" }
+                return "Next: \(candidate.formatted(.dateTime.weekday(.wide)))"
+            }
+        }
+        return ""
+    }
+
     var defaultUrgency: Priority {
         get { Priority(rawValue: defaultUrgencyRawValue) ?? .high }
         set { defaultUrgencyRawValue = newValue.rawValue }

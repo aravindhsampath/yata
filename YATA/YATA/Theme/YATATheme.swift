@@ -16,7 +16,9 @@ enum YATATheme {
 
     static let pillFont: Font = .body.weight(.medium)
     static let titleFont: Font = .system(.title2, weight: .bold)
-    static let captionFont: Font = .caption
+    static let captionFont: Font = .caption2.weight(.regular)
+    static let overdueBadgeFont: Font = .caption2.weight(.bold).monospacedDigit()
+    static let metadataIconFont: Font = .caption2
 
     static let pillHeight: Double = 40
     static let pillPadding: Double = 8

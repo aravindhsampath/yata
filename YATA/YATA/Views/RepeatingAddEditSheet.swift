@@ -119,9 +119,9 @@ struct RepeatingAddEditSheet: View {
                 .foregroundStyle(.secondary)
 
             Picker("Lane", selection: $defaultUrgency) {
-                Text("Do Today").tag(Priority.high)
-                Text("This Week").tag(Priority.medium)
-                Text("Wait").tag(Priority.low)
+                Text(Priority.high.label).tag(Priority.high)
+                Text(Priority.medium.label).tag(Priority.medium)
+                Text(Priority.low.label).tag(Priority.low)
             }
             .pickerStyle(.segmented)
         }

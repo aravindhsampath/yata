@@ -5,6 +5,7 @@ struct AddEditSheet: View {
     let onSave: (String, Date?) -> Void
     let onDelete: (() -> Void)?
     let onReschedule: ((Date) -> Void)?
+    let sourceRuleName: String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -18,12 +19,14 @@ struct AddEditSheet: View {
         mode: AddEditMode,
         onSave: @escaping (String, Date?) -> Void,
         onDelete: (() -> Void)?,
-        onReschedule: ((Date) -> Void)? = nil
+        onReschedule: ((Date) -> Void)? = nil,
+        sourceRuleName: String? = nil
     ) {
         self.mode = mode
         self.onSave = onSave
         self.onDelete = onDelete
         self.onReschedule = onReschedule
+        self.sourceRuleName = sourceRuleName
 
         switch mode {
         case .add:
@@ -49,6 +52,18 @@ struct AddEditSheet: View {
                     .padding()
                     .background(.quaternary, in: .rect(cornerRadius: 12))
                     .focused($isTitleFocused)
+
+                if let ruleName = sourceRuleName {
+                    HStack(spacing: 4) {
+                        Image(systemName: "repeat")
+                            .font(YATATheme.metadataIconFont)
+                        Text("Part of: \(ruleName)")
+                            .font(YATATheme.captionFont)
+                    }
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                }
 
                 reminderRow
 

@@ -9,7 +9,12 @@ struct PriorityContainerView: View {
 
     var body: some View {
         VStack(spacing: YATATheme.pillSpacing) {
-            addButton
+            // Lane label
+            Text(priority.label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
 
             ForEach(items) { item in
                 if let index = items.firstIndex(where: { $0.id == item.id }),
@@ -20,10 +25,14 @@ struct PriorityContainerView: View {
 
                 TodoPillView(
                     item: item,
+                    isDragging: viewModel.draggingItemID == item.id,
+                    justDropped: viewModel.justDroppedItemID == item.id,
+                    lanePriority: priority,
                     onMarkDone: { Task { await viewModel.markDone(item) } },
                     onEdit: { viewModel.editingItem = item },
                     onDelete: { Task { await viewModel.deleteItem(item) } },
-                    onDragStart: { viewModel.startDrag(itemID: item.id) }
+                    onDragStart: { viewModel.startDrag(itemID: item.id) },
+                    onRescheduleTomorrow: { Task { await viewModel.rescheduleToTomorrow(item) } }
                 )
             }
 
@@ -32,6 +41,8 @@ struct PriorityContainerView: View {
                 && viewModel.dropTarget?.index == items.count {
                 insertionIndicator
             }
+
+            addButton
         }
         .padding(YATATheme.containerPadding)
         .containerStyle(color: YATATheme.backgroundColor(for: priority))
@@ -126,13 +137,13 @@ private struct PriorityDropDelegate: DropDelegate {
         let items = viewModel.items(for: priority)
         let itemCount = items.count
 
-        // Each pill takes pillHeight + pillSpacing, offset by add button + container padding
-        let addButtonHeight = YATATheme.pillHeight + YATATheme.pillSpacing
+        // Each pill takes pillHeight + pillSpacing, offset by lane label + container padding
+        let labelHeight: Double = 20 + YATATheme.pillSpacing // caption font ~16pt + padding
         let containerPadding = YATATheme.containerPadding
         let itemSlotHeight = YATATheme.pillHeight + YATATheme.pillSpacing
 
-        // Y position relative to the first item's top edge
-        let relativeY = info.location.y - containerPadding - addButtonHeight
+        // Y position relative to the first item's top edge (after lane label)
+        let relativeY = info.location.y - containerPadding - labelHeight
 
         // Calculate which slot the cursor is over
         let rawIndex: Int

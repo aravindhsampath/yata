@@ -26,6 +26,15 @@ final class HomeViewModel {
     // Done list limit
     var doneListLimit: Int = 25
 
+    // Week task counts for dot ring
+    var weekTaskCounts: [Date: [Priority: Int]] = [:]
+
+    // Progress tracking
+    var todayDoneCount: Int = 0
+
+    // Drop glow animation
+    var justDroppedItemID: UUID?
+
     // Drag state
     var draggingItemID: UUID?
     var dropTarget: DropTarget?
@@ -46,6 +55,20 @@ final class HomeViewModel {
         weekDates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
     }
 
+    var totalTodayCount: Int {
+        highItems.count + mediumItems.count + lowItems.count + todayDoneCount
+    }
+
+    var progressFraction: Double {
+        totalTodayCount > 0 ? Double(todayDoneCount) / Double(totalTodayCount) : 0
+    }
+
+    var progressLabel: String {
+        if totalTodayCount == 0 { return "" }
+        if todayDoneCount == totalTodayCount { return "All done for today" }
+        return "\(todayDoneCount) of \(totalTodayCount) done today"
+    }
+
     func loadAll() async {
         isLoading = true
         defer { isLoading = false }
@@ -54,6 +77,16 @@ final class HomeViewModel {
             mediumItems = try await repository.fetchItems(for: selectedDate, priority: .medium)
             lowItems = try await repository.fetchItems(for: selectedDate, priority: .low)
             doneItems = try await repository.fetchDoneItems(limit: doneListLimit)
+            todayDoneCount = try await repository.countDoneItems(for: selectedDate)
+            weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func refreshWeekTaskCounts() async {
+        do {
+            weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -83,6 +116,10 @@ final class HomeViewModel {
             if doneItems.count > doneListLimit {
                 doneItems.removeLast()
             }
+            if Calendar.current.isDate(selectedDate, inSameDayAs: Calendar.current.startOfDay(for: .now)) {
+                todayDoneCount += 1
+            }
+            await refreshWeekTaskCounts()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -96,6 +133,10 @@ final class HomeViewModel {
             try await repository.update(item)
             doneItems.removeAll { $0.id == item.id }
             appendToPriorityArray(item)
+            if Calendar.current.isDate(selectedDate, inSameDayAs: Calendar.current.startOfDay(for: .now)) {
+                todayDoneCount = max(0, todayDoneCount - 1)
+            }
+            await refreshWeekTaskCounts()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -185,8 +226,13 @@ final class HomeViewModel {
             }
         }
 
+        justDroppedItemID = itemID
         draggingItemID = nil
         dropTarget = nil
+        Task {
+            try? await Task.sleep(for: .milliseconds(400))
+            justDroppedItemID = nil
+        }
     }
 
     func startDrag(itemID: UUID) {
@@ -203,7 +249,7 @@ final class HomeViewModel {
     var secondsUntilMidnight: TimeInterval {
         let calendar = Calendar.current
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now))!
-        return tomorrow.timeIntervalSinceNow
+        return max(1, tomorrow.timeIntervalSinceNow)
     }
 
     func performRollover() async {
@@ -225,8 +271,19 @@ final class HomeViewModel {
 
     func rescheduleItem(_ item: TodoItem, to date: Date) async {
         do {
-            try await repository.reschedule(item, to: date)
+            try await repository.reschedule(item, to: date, resetCount: true)
             removeFromPriorityArray(item)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func rescheduleToTomorrow(_ item: TodoItem) async {
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
+        do {
+            try await repository.reschedule(item, to: tomorrow, resetCount: false)
+            removeFromPriorityArray(item)
+            await refreshWeekTaskCounts()
         } catch {
             errorMessage = error.localizedDescription
         }

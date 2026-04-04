@@ -15,6 +15,7 @@ final class TodoItem {
     var completedAt: Date?
     var scheduledDate: Date = TodoItem.startOfToday
     var sourceRepeatingID: UUID?
+    var sourceRepeatingRuleName: String?
     var rescheduleCount: Int = 0
 
     var priority: Priority {

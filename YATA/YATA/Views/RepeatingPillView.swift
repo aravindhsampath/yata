@@ -31,16 +31,22 @@ struct RepeatingPillView: View {
 
     private var pillContent: some View {
         HStack(spacing: 6) {
-            Text(item.title)
-                .font(YATATheme.pillFont)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(YATATheme.pillFont)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text(item.nextOccurrenceLabel)
+                    .font(YATATheme.captionFont)
+                    .foregroundStyle(.tertiary)
+            }
 
             Spacer()
 
             Image(systemName: "alarm.fill")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(YATATheme.metadataIconFont)
+                .foregroundStyle(.tertiary)
 
             Text(item.scheduleSummary)
                 .font(YATATheme.captionFont)
@@ -52,7 +58,8 @@ struct RepeatingPillView: View {
 
             Button("Edit", systemImage: "pencil", action: onEdit)
                 .labelStyle(.iconOnly)
-                .foregroundStyle(.secondary)
+                .font(YATATheme.metadataIconFont)
+                .foregroundStyle(.tertiary)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)

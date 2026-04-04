@@ -3,6 +3,7 @@ import SwiftUI
 struct WeekStripView: View {
     let weekDates: [Date]
     let selectedDate: Date
+    let taskCounts: [Date: [Priority: Int]]
     let onSelectDate: (Date) -> Void
 
     var body: some View {
@@ -24,6 +25,8 @@ struct WeekStripView: View {
         let calendar = Calendar.current
         let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
         let isToday = calendar.isDateInToday(date)
+        let dayStart = calendar.startOfDay(for: date)
+        let counts = taskCounts[dayStart] ?? [:]
 
         return Button(action: { onSelectDate(date) }) {
             VStack(spacing: 4) {
@@ -36,15 +39,12 @@ struct WeekStripView: View {
                     .foregroundStyle(isSelected ? .primary : .secondary)
                     .frame(width: 32, height: 32)
                     .background {
-                        if isSelected {
-                            Circle()
-                                .fill(.tint)
-                                .opacity(0.2)
-                        } else if isToday {
-                            Circle()
-                                .strokeBorder(.tint, lineWidth: 1)
-                                .opacity(0.4)
-                        }
+                        DotRingView(
+                            highCount: counts[.high] ?? 0,
+                            mediumCount: counts[.medium] ?? 0,
+                            lowCount: counts[.low] ?? 0
+                        )
+                        .opacity(isSelected ? 0.9 : (isToday ? 0.6 : 0.4))
                     }
             }
             .frame(maxWidth: .infinity)

@@ -282,7 +282,7 @@ struct LocalTodoRepositoryTests {
         item.rescheduleCount = 3
         try repo.add(item)
 
-        try repo.reschedule(item, to: nextWeek)
+        try repo.reschedule(item, to: nextWeek, resetCount: true)
 
         let todayItems = try repo.fetchItems(for: today, priority: .high)
         let nextWeekItems = try repo.fetchItems(for: nextWeek, priority: .high)
@@ -301,7 +301,7 @@ struct LocalTodoRepositoryTests {
         item.rescheduleCount = 3
         try repo.add(item)
 
-        try repo.reschedule(item, to: today)
+        try repo.reschedule(item, to: today, resetCount: true)
 
         #expect(item.rescheduleCount == 3) // preserved
     }
@@ -370,5 +370,99 @@ struct LocalTodoRepositoryTests {
             count += items.count
         }
         #expect(count == 5) // Mon-Fri only
+    }
+
+    // MARK: - Reschedule Without Reset (swipe-right)
+
+    @Test("reschedule without reset increments rescheduleCount")
+    func rescheduleWithoutReset() throws {
+        let container = try makeContainer()
+        let repo = makeRepo(container)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+        let item = TodoItem(title: "Defer me", priority: .high, scheduledDate: today)
+        item.rescheduleCount = 2
+        try repo.add(item)
+
+        try repo.reschedule(item, to: tomorrow, resetCount: false)
+
+        #expect(item.rescheduleCount == 3)
+        #expect(calendar.isDate(item.scheduledDate, inSameDayAs: tomorrow))
+    }
+
+    // MARK: - Task Counts by Priority
+
+    @Test("fetchTaskCountsByPriority returns correct counts per day per priority")
+    func taskCountsByPriority() throws {
+        let container = try makeContainer()
+        let repo = makeRepo(container)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today)!
+
+        try repo.add(TodoItem(title: "H1", priority: .high, scheduledDate: today))
+        try repo.add(TodoItem(title: "H2", priority: .high, scheduledDate: today))
+        try repo.add(TodoItem(title: "M1", priority: .medium, scheduledDate: today))
+        try repo.add(TodoItem(title: "L1", priority: .low, scheduledDate: tomorrow))
+
+        let counts = try repo.fetchTaskCountsByPriority(for: [today, tomorrow])
+
+        #expect(counts[today]?[.high] == 2)
+        #expect(counts[today]?[.medium] == 1)
+        #expect(counts[today]?[.low] == nil)
+        #expect(counts[tomorrow]?[.low] == 1)
+    }
+
+    // MARK: - Done Count
+
+    @Test("countDoneItems returns count for specific date")
+    func countDoneItemsForDate() throws {
+        let container = try makeContainer()
+        let repo = makeRepo(container)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+
+        let doneToday = TodoItem(title: "Done today", priority: .high, scheduledDate: today)
+        doneToday.isDone = true
+        doneToday.completedAt = Date()
+        try repo.add(doneToday)
+
+        let doneYesterday = TodoItem(title: "Done yesterday", priority: .high, scheduledDate: yesterday)
+        doneYesterday.isDone = true
+        doneYesterday.completedAt = yesterday
+        try repo.add(doneYesterday)
+
+        let todayCount = try repo.countDoneItems(for: today)
+        let yesterdayCount = try repo.countDoneItems(for: yesterday)
+
+        #expect(todayCount == 1)
+        #expect(yesterdayCount == 1)
+    }
+
+    // MARK: - Repeating Item Lookup
+
+    @Test("fetchRepeatingItem returns rule by ID")
+    func fetchRepeatingItemByID() throws {
+        let container = try makeContainer()
+        let repo = makeRepo(container)
+
+        let ctx = ModelContext(container)
+        let rule = RepeatingItem(
+            title: "Lookup test",
+            frequency: .daily,
+            scheduledTime: .now,
+            defaultUrgency: .high
+        )
+        ctx.insert(rule)
+        try ctx.save()
+
+        let found = try repo.fetchRepeatingItem(by: rule.id)
+        #expect(found?.title == "Lookup test")
+
+        let notFound = try repo.fetchRepeatingItem(by: UUID())
+        #expect(notFound == nil)
     }
 }

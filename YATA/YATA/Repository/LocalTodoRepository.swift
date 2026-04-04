@@ -148,6 +148,7 @@ final class LocalTodoRepository: TodoRepository {
                     scheduledDate: dayStart,
                     sourceRepeatingID: rule.id
                 )
+                occurrence.sourceRepeatingRuleName = rule.title
                 modelContext.insert(occurrence)
                 existingKeys.insert(key)
                 didInsert = true
@@ -176,14 +177,62 @@ final class LocalTodoRepository: TodoRepository {
 
     // MARK: - Reschedule
 
-    func reschedule(_ item: TodoItem, to date: Date) throws {
+    func reschedule(_ item: TodoItem, to date: Date, resetCount: Bool = true) throws {
         let newDate = Calendar.current.startOfDay(for: date)
         let oldDate = Calendar.current.startOfDay(for: item.scheduledDate)
         if newDate != oldDate {
             item.scheduledDate = newDate
-            item.rescheduleCount = 0
+            if resetCount {
+                item.rescheduleCount = 0
+            } else {
+                item.rescheduleCount += 1
+            }
         }
         try modelContext.save()
+    }
+
+    // MARK: - Week Task Counts
+
+    func fetchTaskCountsByPriority(for dates: [Date]) throws -> [Date: [Priority: Int]] {
+        guard let earliest = dates.min(), let latest = dates.max() else { return [:] }
+        let calendar = Calendar.current
+        let rangeStart = calendar.startOfDay(for: earliest)
+        let rangeEnd = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: latest))!
+        let predicate = #Predicate<TodoItem> { item in
+            item.isDone == false && item.scheduledDate >= rangeStart && item.scheduledDate < rangeEnd
+        }
+        let items = try modelContext.fetch(FetchDescriptor<TodoItem>(predicate: predicate))
+        var result: [Date: [Priority: Int]] = [:]
+        for item in items {
+            let day = calendar.startOfDay(for: item.scheduledDate)
+            result[day, default: [:]][item.priority, default: 0] += 1
+        }
+        return result
+    }
+
+    // MARK: - Done Count
+
+    func countDoneItems(for date: Date) throws -> Int {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
+        let predicate = #Predicate<TodoItem> { item in
+            item.isDone == true
+        }
+        let items = try modelContext.fetch(FetchDescriptor<TodoItem>(predicate: predicate))
+        return items.filter { item in
+            guard let completedAt = item.completedAt else { return false }
+            return completedAt >= dayStart && completedAt < dayEnd
+        }.count
+    }
+
+    // MARK: - Repeating Item Lookup
+
+    func fetchRepeatingItem(by id: UUID) throws -> RepeatingItem? {
+        let predicate = #Predicate<RepeatingItem> { $0.id == id }
+        var descriptor = FetchDescriptor<RepeatingItem>(predicate: predicate)
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
     }
 
     // MARK: - Firing Date Computation

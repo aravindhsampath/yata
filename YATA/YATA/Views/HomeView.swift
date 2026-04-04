@@ -29,24 +29,45 @@ struct HomeView: View {
 private struct HomeContentView: View {
     @Bindable var viewModel: HomeViewModel
     @AppStorage("doneListSize") private var doneListSize = 25
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    private var weekStrip: some View {
+        WeekStripView(
+            weekDates: viewModel.weekDates,
+            selectedDate: viewModel.selectedDate,
+            taskCounts: viewModel.weekTaskCounts,
+            onSelectDate: { date in
+                Task { await viewModel.selectDate(date) }
+            }
+        )
+    }
 
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 16) {
-                WeekStripView(
-                    weekDates: viewModel.weekDates,
-                    selectedDate: viewModel.selectedDate,
-                    onSelectDate: { date in
-                        Task { await viewModel.selectDate(date) }
-                    }
-                )
+                weekStrip
 
-                ForEach(Priority.allCases) { priority in
-                    PriorityContainerView(
-                        priority: priority,
-                        viewModel: viewModel
-                    )
+                if sizeClass == .regular {
+                    // iPad: side-by-side Kanban layout
+                    HStack(alignment: .top, spacing: 12) {
+                        ForEach(Priority.allCases) { priority in
+                            PriorityContainerView(
+                                priority: priority,
+                                viewModel: viewModel
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                } else {
+                    // iPhone: vertical stack
+                    ForEach(Priority.allCases) { priority in
+                        PriorityContainerView(
+                            priority: priority,
+                            viewModel: viewModel
+                        )
+                    }
                 }
+
                 DoneSectionView(viewModel: viewModel)
             }
             .padding(.horizontal, YATATheme.pillPadding)
@@ -71,7 +92,8 @@ private struct HomeContentView: View {
                 },
                 onReschedule: { date in
                     Task { await viewModel.rescheduleItem(item, to: date) }
-                }
+                },
+                sourceRuleName: item.sourceRepeatingRuleName
             )
         }
         .sheet(item: $viewModel.addingToPriority) { priority in
@@ -104,6 +126,11 @@ private struct HomeContentView: View {
                 await viewModel.materializeRepeatingItems()
                 await viewModel.loadAll()
             }
+        }
+        .onKeyPress(characters: .init(charactersIn: "n"), phases: .down) { keyPress in
+            guard keyPress.modifiers.contains(.command) else { return .ignored }
+            viewModel.addingToPriority = .high
+            return .handled
         }
         .task {
             // Midnight rollover timer

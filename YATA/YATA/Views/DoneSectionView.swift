@@ -8,10 +8,17 @@ struct DoneSectionView: View {
     var body: some View {
         if !viewModel.doneItems.isEmpty {
             VStack(alignment: .leading, spacing: YATATheme.pillSpacing) {
-                Text("Done")
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.progressLabel.isEmpty ? "Done" : viewModel.progressLabel)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    if viewModel.totalTodayCount > 0 {
+                        ProgressView(value: viewModel.progressFraction)
+                            .tint(viewModel.progressFraction >= 1.0 ? .green : .accentColor)
+                    }
+                }
+                .padding(.horizontal, 4)
 
                 ForEach(viewModel.doneItems) { item in
                     doneRow(item)

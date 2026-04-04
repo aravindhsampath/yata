@@ -12,6 +12,9 @@ protocol TodoRepository {
     func move(_ item: TodoItem, to priority: Priority) async throws
     func rolloverOverdueItems(to date: Date) async throws
     func materializeRepeatingItems(for dateRange: ClosedRange<Date>) async throws
-    func reschedule(_ item: TodoItem, to date: Date) async throws
+    func reschedule(_ item: TodoItem, to date: Date, resetCount: Bool) async throws
     func deleteUndoneOccurrences(for repeatingID: UUID) async throws
+    func fetchTaskCountsByPriority(for dates: [Date]) async throws -> [Date: [Priority: Int]]
+    func countDoneItems(for date: Date) async throws -> Int
+    func fetchRepeatingItem(by id: UUID) async throws -> RepeatingItem?
 }
