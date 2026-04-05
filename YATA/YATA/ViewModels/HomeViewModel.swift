@@ -82,7 +82,7 @@ final class HomeViewModel {
             weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
             // Sync notifications on load
             let allActiveItems = (highItems + mediumItems + lowItems)
-            NotificationScheduler.syncAllReminders(items: allActiveItems)
+            await NotificationScheduler.syncAllReminders(items: allActiveItems)
 
             // Set badge to overdue reminder count
             let now = Date.now
@@ -312,6 +312,7 @@ final class HomeViewModel {
                 item.reminderDate = calendar.date(bySettingHour: timeComponents.hour ?? 9,
                                                    minute: timeComponents.minute ?? 0,
                                                    second: 0, of: tomorrow)
+                try await repository.update(item)
                 NotificationScheduler.scheduleReminder(for: item)
             }
             removeFromPriorityArray(item)

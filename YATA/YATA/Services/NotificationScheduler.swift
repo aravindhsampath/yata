@@ -33,36 +33,34 @@ struct NotificationScheduler {
         center.removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 
-    static func cancelAllReminders() {
-        center.getPendingNotificationRequests { requests in
-            let yataIDs = requests
-                .map(\.identifier)
-                .filter { $0.hasPrefix(identifierPrefix) }
-            center.removePendingNotificationRequests(withIdentifiers: yataIDs)
-        }
+    static func cancelAllReminders() async {
+        let requests = await center.pendingNotificationRequests()
+        let yataIDs = requests
+            .map(\.identifier)
+            .filter { $0.hasPrefix(identifierPrefix) }
+        center.removePendingNotificationRequests(withIdentifiers: yataIDs)
     }
 
-    static func syncAllReminders(items: [TodoItem]) {
+    static func syncAllReminders(items: [TodoItem]) async {
         let now = Date.now
         let validItems = items.filter { !$0.isDone && ($0.reminderDate ?? .distantPast) > now }
         let expectedIDs = Set(validItems.map { "\(identifierPrefix)\($0.id.uuidString)" })
 
-        center.getPendingNotificationRequests { pending in
-            let pendingYataIDs = Set(
-                pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
-            )
+        let pending = await center.pendingNotificationRequests()
+        let pendingYataIDs = Set(
+            pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
+        )
 
-            // Cancel stale
-            let stale = pendingYataIDs.subtracting(expectedIDs)
-            if !stale.isEmpty {
-                center.removePendingNotificationRequests(withIdentifiers: Array(stale))
-            }
+        // Cancel stale
+        let stale = pendingYataIDs.subtracting(expectedIDs)
+        if !stale.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: Array(stale))
+        }
 
-            // Schedule missing
-            let pendingItemUUIDs = Set(pendingYataIDs.map { $0.replacingOccurrences(of: identifierPrefix, with: "") })
-            for item in validItems where !pendingItemUUIDs.contains(item.id.uuidString) {
-                scheduleReminder(for: item)
-            }
+        // Schedule missing
+        let pendingItemUUIDs = Set(pendingYataIDs.map { $0.replacingOccurrences(of: identifierPrefix, with: "") })
+        for item in validItems where !pendingItemUUIDs.contains(item.id.uuidString) {
+            scheduleReminder(for: item)
         }
     }
 

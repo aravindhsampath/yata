@@ -36,10 +36,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         return true
     }
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        UNUserNotificationCenter.current().setBadgeCount(0)
-    }
-
     // MARK: - UNUserNotificationCenterDelegate
 
     func userNotificationCenter(
@@ -91,7 +87,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     private func handleSnooze30(itemID: UUID, from content: UNNotificationContent) {
         let snoozeDate = Date.now.addingTimeInterval(30 * 60)
 
-        let newContent = content.mutableCopy() as! UNMutableNotificationContent
+        guard let newContent = content.mutableCopy() as? UNMutableNotificationContent else { return }
         newContent.body = "Snoozed - \(newContent.title)"
 
         let components = Calendar.current.dateComponents(
