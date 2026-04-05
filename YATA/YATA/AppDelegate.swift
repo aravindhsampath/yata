@@ -4,6 +4,7 @@ import SwiftData
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var modelContainer: ModelContainer?
+    var repositoryProvider: RepositoryProvider?
 
     func application(
         _ application: UIApplication,
@@ -67,8 +68,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // MARK: - Action Handlers
 
+    private static let dateFormatter: DateFormatter = {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        return fmt
+    }()
+
     @MainActor
-    private func handleMarkDone(itemID: UUID) {
+    private func handleMarkDone(itemID: UUID) async {
         guard let container = modelContainer else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
@@ -79,6 +88,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         item.isDone = true
         item.completedAt = .now
         try? context.save()
+
+        logMutation(for: item)
 
         NotificationScheduler.cancelReminder(for: itemID)
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
@@ -100,7 +111,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
         UNUserNotificationCenter.current().add(request)
 
-        // Also update the reminderDate on the item to keep model consistent
         Task { @MainActor in
             guard let container = modelContainer else { return }
             let context = ModelContext(container)
@@ -110,12 +120,15 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             guard let item = try? context.fetch(descriptor).first else { return }
             item.reminderDate = snoozeDate
             try? context.save()
+
+            logMutation(for: item)
+
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
         }
     }
 
     @MainActor
-    private func handleTomorrow(itemID: UUID) {
+    private func handleTomorrow(itemID: UUID) async {
         guard let container = modelContainer else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
@@ -129,20 +142,44 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         item.scheduledDate = tomorrow
         item.rescheduleCount += 1
 
-        // Preserve time-of-day for the reminder
         if let oldReminder = item.reminderDate {
             let timeComponents = calendar.dateComponents([.hour, .minute], from: oldReminder)
             item.reminderDate = calendar.date(bySettingHour: timeComponents.hour ?? 9,
                                                minute: timeComponents.minute ?? 0,
                                                second: 0, of: tomorrow)
         }
+
         try? context.save()
+
+        logMutation(for: item)
 
         NotificationScheduler.cancelReminder(for: itemID)
         if item.reminderDate != nil {
             NotificationScheduler.scheduleReminder(for: item)
         }
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+    }
+
+    // MARK: - Mutation Logging
+
+    /// Logs an update mutation for sync when in client mode.
+    /// The item is saved locally via its own ModelContext first;
+    /// this method only records the pending mutation for the SyncEngine.
+    @MainActor
+    private func logMutation(for item: TodoItem) {
+        guard let logger = repositoryProvider?.mutationLogger else { return }
+        let fmt = Self.dateFormatter
+        let payload = UpdateItemRequest(
+            title: item.title,
+            priority: item.priorityRawValue,
+            isDone: item.isDone,
+            sortOrder: item.sortOrder,
+            reminderDate: item.reminderDate.map { fmt.string(from: $0) },
+            scheduledDate: fmt.string(from: item.scheduledDate),
+            rescheduleCount: item.rescheduleCount,
+            updatedAt: item.updatedAt.map { fmt.string(from: $0) }
+        )
+        try? logger.log(entityType: "todoItem", entityID: item.id, mutationType: "update", payload: payload)
     }
 }
 

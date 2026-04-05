@@ -2,22 +2,21 @@ import SwiftUI
 import SwiftData
 
 struct HomeView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(RepositoryProvider.self) private var repositoryProvider
     @State private var viewModel: HomeViewModel?
     @State private var permissionManager = NotificationPermissionManager()
 
     var body: some View {
         Group {
             if let viewModel {
-                HomeContentView(viewModel: viewModel, permissionManager: permissionManager)
+                HomeContentView(viewModel: viewModel, permissionManager: permissionManager, repositoryProvider: repositoryProvider)
             } else {
                 ProgressView()
             }
         }
         .task {
             if viewModel == nil {
-                let repo = LocalTodoRepository(modelContainer: modelContext.container)
-                let vm = HomeViewModel(repository: repo)
+                let vm = HomeViewModel(repository: repositoryProvider.todoRepository)
                 viewModel = vm
                 await vm.performRollover()
                 await vm.materializeRepeatingItems()
@@ -34,6 +33,7 @@ struct HomeView: View {
 private struct HomeContentView: View {
     @Bindable var viewModel: HomeViewModel
     let permissionManager: NotificationPermissionManager
+    let repositoryProvider: RepositoryProvider
     @AppStorage("doneListSize") private var doneListSize = 25
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -84,6 +84,10 @@ private struct HomeContentView: View {
         }
         .scrollIndicators(.hidden)
         .refreshable {
+            if repositoryProvider.isClientMode {
+                try? await repositoryProvider.syncEngine?.fullSync()
+                NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+            }
             await viewModel.performRollover()
             await viewModel.materializeRepeatingItems()
             await viewModel.loadAll()
@@ -160,6 +164,8 @@ private struct HomeContentView: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: TodoItem.self, RepeatingItem.self, PendingMutation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     HomeView()
-        .modelContainer(for: [TodoItem.self, RepeatingItem.self], inMemory: true)
+        .environment(RepositoryProvider.preview(container: container))
+        .modelContainer(container)
 }

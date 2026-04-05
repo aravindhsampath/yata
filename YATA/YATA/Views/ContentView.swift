@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     @State private var selectedTab = AppTab.home
@@ -19,6 +20,8 @@ struct ContentView: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: TodoItem.self, RepeatingItem.self, PendingMutation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     ContentView()
-        .modelContainer(for: TodoItem.self, inMemory: true)
+        .environment(RepositoryProvider.preview(container: container))
+        .modelContainer(container)
 }

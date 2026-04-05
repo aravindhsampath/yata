@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct RepeatingView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(RepositoryProvider.self) private var repositoryProvider
     @State private var viewModel: RepeatingViewModel?
 
     var body: some View {
@@ -15,10 +15,7 @@ struct RepeatingView: View {
         }
         .task {
             if viewModel == nil {
-                let container = modelContext.container
-                let repo = LocalRepeatingRepository(modelContainer: container)
-                let todoRepo = LocalTodoRepository(modelContainer: container)
-                let vm = RepeatingViewModel(repository: repo, todoRepository: todoRepo)
+                let vm = RepeatingViewModel(repository: repositoryProvider.repeatingRepository, todoRepository: repositoryProvider.todoRepository)
                 viewModel = vm
                 await vm.loadAll()
             }
@@ -119,6 +116,8 @@ private struct RepeatingContentView: View {
 }
 
 #Preview {
+    let container = try! ModelContainer(for: TodoItem.self, RepeatingItem.self, PendingMutation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     RepeatingView()
-        .modelContainer(for: RepeatingItem.self, inMemory: true)
+        .environment(RepositoryProvider.preview(container: container))
+        .modelContainer(container)
 }
