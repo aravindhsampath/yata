@@ -12,8 +12,18 @@
 		A10000010000000000000003 /* Priority.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000003 /* Priority.swift */; };
 		A10000010000000000000004 /* TodoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000004 /* TodoRepository.swift */; };
 		A10000010000000000000005 /* LocalTodoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000005 /* LocalTodoRepository.swift */; };
-		A10000010000000000000006 /* APITodoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000006 /* APITodoRepository.swift */; };
 		A10000010000000000000007 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000007 /* HomeViewModel.swift */; };
+		C10000010000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000001 /* APIClient.swift */; };
+		C10000010000000000000002 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000002 /* APIError.swift */; };
+		C10000010000000000000003 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000003 /* Endpoint.swift */; };
+		C10000010000000000000004 /* APITodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000004 /* APITodoItem.swift */; };
+		C10000010000000000000005 /* APIRepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000005 /* APIRepeatingItem.swift */; };
+		C10000010000000000000006 /* RequestBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000006 /* RequestBodies.swift */; };
+		C10000010000000000000007 /* ResponseBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000007 /* ResponseBodies.swift */; };
+		C10000010000000000000008 /* EndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000008 /* EndpointTests.swift */; };
+		C10000010000000000000009 /* DTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000009 /* DTOTests.swift */; };
+		C10000010000000000000010 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000010 /* APIClientTests.swift */; };
+		C10000010000000000000011 /* ModelMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000011 /* ModelMigrationTests.swift */; };
 		A10000010000000000000008 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000008 /* HomeView.swift */; };
 		A10000010000000000000009 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000009 /* ContentView.swift */; };
 		A10000010000000000000010 /* PriorityContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000010 /* PriorityContainerView.swift */; };
@@ -62,8 +72,18 @@
 		A20000010000000000000003 /* Priority.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Priority.swift; sourceTree = "<group>"; };
 		A20000010000000000000004 /* TodoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoRepository.swift; sourceTree = "<group>"; };
 		A20000010000000000000005 /* LocalTodoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepository.swift; sourceTree = "<group>"; };
-		A20000010000000000000006 /* APITodoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITodoRepository.swift; sourceTree = "<group>"; };
 		A20000010000000000000007 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
+		C20000010000000000000001 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		C20000010000000000000002 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		C20000010000000000000003 /* Endpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
+		C20000010000000000000004 /* APITodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITodoItem.swift; sourceTree = "<group>"; };
+		C20000010000000000000005 /* APIRepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRepeatingItem.swift; sourceTree = "<group>"; };
+		C20000010000000000000006 /* RequestBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBodies.swift; sourceTree = "<group>"; };
+		C20000010000000000000007 /* ResponseBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBodies.swift; sourceTree = "<group>"; };
+		C20000010000000000000008 /* EndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000009 /* DTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000010 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000011 /* ModelMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMigrationTests.swift; sourceTree = "<group>"; };
 		A20000010000000000000008 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A20000010000000000000009 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000010000000000000010 /* PriorityContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityContainerView.swift; sourceTree = "<group>"; };
@@ -132,6 +152,7 @@
 				A20000010000000000000035 /* AppDelegate.swift */,
 				A50000010000000000000003 /* Models */,
 				A50000010000000000000004 /* Repository */,
+				C50000010000000000000001 /* Networking */,
 				A50000010000000000000010 /* Services */,
 				A50000010000000000000005 /* ViewModels */,
 				A50000010000000000000006 /* Views */,
@@ -164,11 +185,32 @@
 			children = (
 				A20000010000000000000004 /* TodoRepository.swift */,
 				A20000010000000000000005 /* LocalTodoRepository.swift */,
-				A20000010000000000000006 /* APITodoRepository.swift */,
 				A20000010000000000000022 /* RepeatingRepository.swift */,
 				A20000010000000000000023 /* LocalRepeatingRepository.swift */,
 			);
 			path = Repository;
+			sourceTree = "<group>";
+		};
+		C50000010000000000000001 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				C20000010000000000000001 /* APIClient.swift */,
+				C20000010000000000000002 /* APIError.swift */,
+				C20000010000000000000003 /* Endpoint.swift */,
+				C50000010000000000000002 /* DTOs */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		C50000010000000000000002 /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				C20000010000000000000004 /* APITodoItem.swift */,
+				C20000010000000000000005 /* APIRepeatingItem.swift */,
+				C20000010000000000000006 /* RequestBodies.swift */,
+				C20000010000000000000007 /* ResponseBodies.swift */,
+			);
+			path = DTOs;
 			sourceTree = "<group>";
 		};
 		A50000010000000000000005 /* ViewModels */ = {
@@ -237,6 +279,10 @@
 			isa = PBXGroup;
 			children = (
 				B20000010000000000000001 /* LocalTodoRepositoryTests.swift */,
+				C20000010000000000000008 /* EndpointTests.swift */,
+				C20000010000000000000009 /* DTOTests.swift */,
+				C20000010000000000000010 /* APIClientTests.swift */,
+				C20000010000000000000011 /* ModelMigrationTests.swift */,
 			);
 			path = YATATests;
 			sourceTree = "<group>";
@@ -341,6 +387,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */,
+				C10000010000000000000008 /* EndpointTests.swift in Sources */,
+				C10000010000000000000009 /* DTOTests.swift in Sources */,
+				C10000010000000000000010 /* APIClientTests.swift in Sources */,
+				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -353,8 +403,14 @@
 				A10000010000000000000003 /* Priority.swift in Sources */,
 				A10000010000000000000004 /* TodoRepository.swift in Sources */,
 				A10000010000000000000005 /* LocalTodoRepository.swift in Sources */,
-				A10000010000000000000006 /* APITodoRepository.swift in Sources */,
 				A10000010000000000000007 /* HomeViewModel.swift in Sources */,
+				C10000010000000000000001 /* APIClient.swift in Sources */,
+				C10000010000000000000002 /* APIError.swift in Sources */,
+				C10000010000000000000003 /* Endpoint.swift in Sources */,
+				C10000010000000000000004 /* APITodoItem.swift in Sources */,
+				C10000010000000000000005 /* APIRepeatingItem.swift in Sources */,
+				C10000010000000000000006 /* RequestBodies.swift in Sources */,
+				C10000010000000000000007 /* ResponseBodies.swift in Sources */,
 				A10000010000000000000008 /* HomeView.swift in Sources */,
 				A10000010000000000000009 /* ContentView.swift in Sources */,
 				A10000010000000000000010 /* PriorityContainerView.swift in Sources */,
