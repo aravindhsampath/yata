@@ -43,10 +43,13 @@ private struct HomeContentView: View {
     }
 
     var body: some View {
+        VStack(spacing: 0) {
+            weekStrip
+                .padding(.horizontal, YATATheme.pillPadding)
+                .padding(.bottom, 8)
+
         ScrollView {
             LazyVStack(spacing: 16) {
-                weekStrip
-
                 if sizeClass == .regular {
                     // iPad: side-by-side Kanban layout
                     HStack(alignment: .top, spacing: 12) {
@@ -79,6 +82,7 @@ private struct HomeContentView: View {
             await viewModel.materializeRepeatingItems()
             await viewModel.loadAll()
         }
+        } // VStack
         .sheet(item: $viewModel.editingItem) { item in
             AddEditSheet(
                 mode: .edit(item),
