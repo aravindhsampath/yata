@@ -63,6 +63,7 @@
 		E10000010000000000000002 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000010000000000000002 /* SyncEngineTests.swift */; };
 		F10000010000000000000001 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000001 /* KeychainHelper.swift */; };
 		F10000010000000000000002 /* RepositoryProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000002 /* RepositoryProvider.swift */; };
+		G10000010000000000000001 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = G20000010000000000000001 /* NetworkMonitor.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -134,6 +135,7 @@
 		E20000010000000000000002 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 		F20000010000000000000001 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		F20000010000000000000002 /* RepositoryProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProvider.swift; sourceTree = "<group>"; };
+		G20000010000000000000001 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -317,6 +319,7 @@
 			isa = PBXGroup;
 			children = (
 				D20000010000000000000002 /* MutationLogger.swift */,
+				G20000010000000000000001 /* NetworkMonitor.swift */,
 				E20000010000000000000001 /* SyncEngine.swift */,
 			);
 			path = Sync;
@@ -445,6 +448,7 @@
 				D10000010000000000000002 /* MutationLogger.swift in Sources */,
 				D10000010000000000000003 /* CachingRepository.swift in Sources */,
 				E10000010000000000000001 /* SyncEngine.swift in Sources */,
+				G10000010000000000000001 /* NetworkMonitor.swift in Sources */,
 				A10000010000000000000024 /* RepeatingViewModel.swift in Sources */,
 				A10000010000000000000025 /* RepeatingPillView.swift in Sources */,
 				A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */,

@@ -7,5 +7,9 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.aravindhsampath.yata.sync</string>
+	</array>
 </dict>
 </plist>

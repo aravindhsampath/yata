@@ -10,6 +10,7 @@ struct YATAApp: App {
 
     private let container: ModelContainer
     @State private var repositoryProvider: RepositoryProvider
+    @State private var networkMonitor = NetworkMonitor()
 
     init() {
         let container = try! ModelContainer(for: TodoItem.self, RepeatingItem.self, PendingMutation.self)
@@ -21,10 +22,17 @@ struct YATAApp: App {
         WindowGroup {
             ContentView()
                 .environment(repositoryProvider)
+                .environment(networkMonitor)
                 .preferredColorScheme(resolvedColorScheme)
                 .onAppear {
                     appDelegate.modelContainer = container
                     appDelegate.repositoryProvider = repositoryProvider
+                    networkMonitor.onReconnect = { [repositoryProvider] in
+                        guard repositoryProvider.isClientMode else { return }
+                        try? await repositoryProvider.syncEngine?.fullSync()
+                        NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+                    }
+                    networkMonitor.start()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
@@ -35,6 +43,8 @@ struct YATAApp: App {
                                 NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
                             }
                         }
+                    } else if newPhase == .background && repositoryProvider.isClientMode {
+                        appDelegate.scheduleBackgroundSync()
                     }
                 }
         }

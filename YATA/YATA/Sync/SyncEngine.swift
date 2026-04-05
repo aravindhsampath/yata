@@ -8,6 +8,15 @@ enum SyncError: Error {
     case networkUnavailable(underlying: Error)
     case pushFailed(underlying: Error)
     case pullFailed(underlying: Error)
+    case syncHalted(consecutiveFailures: Int)
+}
+
+// MARK: - SyncStatus
+
+enum SyncStatus {
+    case ok
+    case retrying(failures: Int, nextRetryIn: TimeInterval)
+    case halted(failures: Int)
 }
 
 // MARK: - MutationSnapshot
@@ -30,6 +39,15 @@ actor SyncEngine {
     private let mutationLogger: MutationLogger
     private let modelContext: ModelContext
 
+    // MARK: - Backoff state
+
+    private var consecutiveFailures: Int = 0
+    private var backoffSeconds: TimeInterval = 0
+    private let maxBackoff: TimeInterval = 60
+    private let maxConsecutiveFailures: Int = 10
+
+    private var isSyncHalted: Bool { consecutiveFailures >= maxConsecutiveFailures }
+
     private let payloadDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -44,7 +62,28 @@ actor SyncEngine {
 
     // MARK: - Public API
 
+    func syncStatus() -> SyncStatus {
+        if isSyncHalted { return .halted(failures: consecutiveFailures) }
+        if consecutiveFailures > 0 { return .retrying(failures: consecutiveFailures, nextRetryIn: backoffSeconds) }
+        return .ok
+    }
+
+    func resetBackoff() {
+        consecutiveFailures = 0
+        backoffSeconds = 0
+    }
+
     func push() async throws {
+        // Check if sync is halted due to too many failures
+        if isSyncHalted {
+            throw SyncError.syncHalted(consecutiveFailures: consecutiveFailures)
+        }
+
+        // Wait for backoff period if needed
+        if backoffSeconds > 0 {
+            try await Task.sleep(for: .seconds(backoffSeconds))
+        }
+
         // 1. Compact the queue
         try await MainActor.run { try mutationLogger.compact() }
 
@@ -90,10 +129,17 @@ actor SyncEngine {
                             try modelContext.save()
                         }
                     }
+                    // Track consecutive failures for backoff
+                    consecutiveFailures += 1
+                    backoffSeconds = min(pow(2.0, Double(consecutiveFailures - 1)), maxBackoff)
                     throw SyncError.pushFailed(underlying: error)
                 }
             }
         }
+
+        // All mutations processed successfully — reset backoff
+        consecutiveFailures = 0
+        backoffSeconds = 0
     }
 
     func pull() async throws {
@@ -200,6 +246,8 @@ actor SyncEngine {
         } catch let error as SyncError {
             switch error {
             case .authenticationRequired, .networkUnavailable:
+                throw error
+            case .syncHalted:
                 throw error
             case .pushFailed, .pullFailed:
                 // Partial push failure — still attempt pull

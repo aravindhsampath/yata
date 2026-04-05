@@ -1,6 +1,7 @@
 import UIKit
 import UserNotifications
 import SwiftData
+import BackgroundTasks
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var modelContainer: ModelContainer?
@@ -34,7 +35,43 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         )
         center.setNotificationCategories([taskCategory])
 
+        // Register background sync task
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.aravindhsampath.yata.sync", using: nil) { task in
+            self.handleBackgroundSync(task: task as! BGAppRefreshTask)
+        }
+
         return true
+    }
+
+    // MARK: - Background Sync
+
+    func handleBackgroundSync(task: BGAppRefreshTask) {
+        scheduleBackgroundSync()
+
+        let syncTask = Task { @MainActor in
+            try await repositoryProvider?.syncEngine?.fullSync()
+            NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+        }
+
+        task.expirationHandler = {
+            syncTask.cancel()
+            task.setTaskCompleted(success: false)
+        }
+
+        Task {
+            do {
+                try await syncTask.value
+                task.setTaskCompleted(success: true)
+            } catch {
+                task.setTaskCompleted(success: false)
+            }
+        }
+    }
+
+    func scheduleBackgroundSync() {
+        let request = BGAppRefreshTaskRequest(identifier: "com.aravindhsampath.yata.sync")
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
     }
 
     // MARK: - UNUserNotificationCenterDelegate

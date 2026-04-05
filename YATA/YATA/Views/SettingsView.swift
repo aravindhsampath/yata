@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var isSyncing = false
     @State private var errorMessage: String?
     @State private var showError = false
+    @State private var syncStatusValue: SyncStatus = .ok
 
     private var selectedPreference: Binding<ColorSchemePreference> {
         Binding(
@@ -66,6 +67,7 @@ struct SettingsView: View {
                 if let urlString = KeychainHelper.loadString(forKey: "yata_server_url") {
                     serverURLText = urlString
                 }
+                refreshSyncStatus()
             }
         }
     }
@@ -81,11 +83,13 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
             .onChange(of: serverMode) { oldValue, newValue in
                 if newValue == "local" && oldValue == "client" {
-                    repositoryProvider.disconnect()
-                    connectionState = .disconnected
-                    healthStatus = .idle
-                    serverURLText = ""
-                    secretText = ""
+                    Task {
+                        await repositoryProvider.disconnect()
+                        connectionState = .disconnected
+                        healthStatus = .idle
+                        serverURLText = ""
+                        secretText = ""
+                    }
                 }
             }
 
@@ -159,17 +163,49 @@ struct SettingsView: View {
 
         LabeledContent("Pending Mutations", value: "\(repositoryProvider.pendingMutationCount())")
 
+        syncStatusRow
+
         Button("Sync Now") {
             Task { await syncNow() }
         }
 
         Button("Disconnect", role: .destructive) {
-            repositoryProvider.disconnect()
-            serverMode = "local"
-            connectionState = .disconnected
-            healthStatus = .idle
-            serverURLText = ""
-            secretText = ""
+            Task {
+                await repositoryProvider.disconnect()
+                serverMode = "local"
+                connectionState = .disconnected
+                healthStatus = .idle
+                serverURLText = ""
+                secretText = ""
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var syncStatusRow: some View {
+        switch syncStatusValue {
+        case .ok:
+            EmptyView()
+        case .retrying(let failures, let nextRetryIn):
+            HStack {
+                Text("Retrying (\(failures) failures, next in \(Int(nextRetryIn))s)")
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
+            }
+        case .halted(let failures):
+            HStack {
+                Text("Sync halted after \(failures) failures")
+                    .foregroundStyle(.red)
+                    .font(.footnote)
+                Spacer()
+                Button("Retry") {
+                    Task {
+                        await repositoryProvider.syncEngine?.resetBackoff()
+                        await syncNow()
+                    }
+                }
+                .font(.footnote)
+            }
         }
     }
 
@@ -246,25 +282,21 @@ struct SettingsView: View {
             let apiClient = APIClient(serverURL: serverURL, token: token)
 
             // Push all local TodoItems
-            let localTodoRepo = LocalTodoRepository(modelContainer: modelContext.container)
-            let allDates = [Date.distantPast...Date.distantFuture]
-            // Push items for each priority
-            for priority in Priority.allCases {
-                let items = try await localTodoRepo.fetchItems(for: .now, priority: priority)
-                for item in items {
-                    let dateFormatter = Self.dateFormatter
-                    let body = CreateItemRequest(
-                        id: item.id,
-                        title: item.title,
-                        priority: item.priorityRawValue,
-                        scheduledDate: dateFormatter.string(from: item.scheduledDate),
-                        reminderDate: item.reminderDate.map { dateFormatter.string(from: $0) },
-                        sortOrder: item.sortOrder,
-                        sourceRepeatingId: item.sourceRepeatingID,
-                        sourceRepeatingRuleName: item.sourceRepeatingRuleName
-                    )
-                    try? await (apiClient.requestNoContent(.createItem(body: body)) as Void)
-                }
+            let allItemsDescriptor = FetchDescriptor<TodoItem>()
+            let allItems = try modelContext.fetch(allItemsDescriptor)
+            let dateFormatter = Self.dateFormatter
+            for item in allItems {
+                let body = CreateItemRequest(
+                    id: item.id,
+                    title: item.title,
+                    priority: item.priorityRawValue,
+                    scheduledDate: dateFormatter.string(from: item.scheduledDate),
+                    reminderDate: item.reminderDate.map { dateFormatter.string(from: $0) },
+                    sortOrder: item.sortOrder,
+                    sourceRepeatingId: item.sourceRepeatingID,
+                    sourceRepeatingRuleName: item.sourceRepeatingRuleName
+                )
+                try? await (apiClient.requestNoContent(.createItem(body: body)) as Void)
             }
 
             // Push all local RepeatingItems
@@ -294,7 +326,7 @@ struct SettingsView: View {
             secretText = ""
         } catch {
             showErrorMessage("Initial sync failed: \(error.localizedDescription)")
-            repositoryProvider.disconnect()
+            await repositoryProvider.disconnect()
             serverMode = "local"
             connectionState = .disconnected
         }
@@ -302,12 +334,23 @@ struct SettingsView: View {
 
     private func syncNow() async {
         isSyncing = true
-        defer { isSyncing = false }
+        defer {
+            isSyncing = false
+            refreshSyncStatus()
+        }
         do {
             try await repositoryProvider.syncEngine?.fullSync()
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
         } catch {
             showErrorMessage("Sync failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func refreshSyncStatus() {
+        Task {
+            if let engine = repositoryProvider.syncEngine {
+                syncStatusValue = await engine.syncStatus()
+            }
         }
     }
 

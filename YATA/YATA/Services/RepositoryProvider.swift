@@ -74,7 +74,11 @@ final class RepositoryProvider {
         syncEngine = engine
     }
 
-    func disconnect() {
+    func disconnect() async {
+        // Pull latest server state before disconnecting
+        try? await syncEngine?.fullSync()
+        NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+
         // Clear pending mutations
         if let logger = mutationLogger {
             if let mutations = try? logger.pendingMutations() {
