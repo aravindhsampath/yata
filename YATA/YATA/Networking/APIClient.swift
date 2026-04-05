@@ -86,6 +86,51 @@ final class APIClient {
         return request
     }
 
+    // MARK: - Static Pre-Auth Methods
+
+    static func checkHealth(serverURL: URL) async -> Bool {
+        guard let url = URL(string: "/health", relativeTo: serverURL) else { return false }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return false }
+            let health = try JSONDecoder().decode(HealthResponse.self, from: data)
+            return health.status == "ok"
+        } catch {
+            return false
+        }
+    }
+
+    static func authenticate(serverURL: URL, secret: String) async throws -> String {
+        guard let url = URL(string: "/auth/token", relativeTo: serverURL) else {
+            throw APIError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        request.httpBody = try encoder.encode(AuthRequest(secret: secret))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.networkError(underlying: URLError(.badServerResponse))
+        }
+        guard (200...299).contains(http.statusCode) else {
+            if http.statusCode == 401 { throw APIError.unauthorized }
+            throw APIError.serverError(message: "HTTP \(http.statusCode)")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let tokenResponse = try decoder.decode(AuthTokenResponse.self, from: data)
+        return tokenResponse.token
+    }
+
     private func mapStatusCode(response: HTTPURLResponse, data: Data) throws(APIError) {
         let statusCode = response.statusCode
         guard !(200...299).contains(statusCode) else { return }

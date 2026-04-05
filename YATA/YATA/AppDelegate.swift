@@ -4,6 +4,7 @@ import SwiftData
 
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var modelContainer: ModelContainer?
+    var repositoryProvider: RepositoryProvider?
 
     func application(
         _ application: UIApplication,
@@ -68,7 +69,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // MARK: - Action Handlers
 
     @MainActor
-    private func handleMarkDone(itemID: UUID) {
+    private func handleMarkDone(itemID: UUID) async {
         guard let container = modelContainer else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
@@ -78,7 +79,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         guard let item = try? context.fetch(descriptor).first else { return }
         item.isDone = true
         item.completedAt = .now
-        try? context.save()
+
+        if let provider = repositoryProvider {
+            try? await provider.todoRepository.update(item)
+        } else {
+            try? context.save()
+        }
 
         NotificationScheduler.cancelReminder(for: itemID)
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
@@ -109,13 +115,18 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             descriptor.fetchLimit = 1
             guard let item = try? context.fetch(descriptor).first else { return }
             item.reminderDate = snoozeDate
-            try? context.save()
+
+            if let provider = repositoryProvider {
+                try? await provider.todoRepository.update(item)
+            } else {
+                try? context.save()
+            }
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
         }
     }
 
     @MainActor
-    private func handleTomorrow(itemID: UUID) {
+    private func handleTomorrow(itemID: UUID) async {
         guard let container = modelContainer else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
@@ -136,7 +147,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                                                minute: timeComponents.minute ?? 0,
                                                second: 0, of: tomorrow)
         }
-        try? context.save()
+
+        if let provider = repositoryProvider {
+            try? await provider.todoRepository.update(item)
+        } else {
+            try? context.save()
+        }
 
         NotificationScheduler.cancelReminder(for: itemID)
         if item.reminderDate != nil {

@@ -13,17 +13,6 @@
 		A10000010000000000000004 /* TodoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000004 /* TodoRepository.swift */; };
 		A10000010000000000000005 /* LocalTodoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000005 /* LocalTodoRepository.swift */; };
 		A10000010000000000000007 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000007 /* HomeViewModel.swift */; };
-		C10000010000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000001 /* APIClient.swift */; };
-		C10000010000000000000002 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000002 /* APIError.swift */; };
-		C10000010000000000000003 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000003 /* Endpoint.swift */; };
-		C10000010000000000000004 /* APITodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000004 /* APITodoItem.swift */; };
-		C10000010000000000000005 /* APIRepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000005 /* APIRepeatingItem.swift */; };
-		C10000010000000000000006 /* RequestBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000006 /* RequestBodies.swift */; };
-		C10000010000000000000007 /* ResponseBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000007 /* ResponseBodies.swift */; };
-		C10000010000000000000008 /* EndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000008 /* EndpointTests.swift */; };
-		C10000010000000000000009 /* DTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000009 /* DTOTests.swift */; };
-		C10000010000000000000010 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000010 /* APIClientTests.swift */; };
-		C10000010000000000000011 /* ModelMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000011 /* ModelMigrationTests.swift */; };
 		A10000010000000000000008 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000008 /* HomeView.swift */; };
 		A10000010000000000000009 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000009 /* ContentView.swift */; };
 		A10000010000000000000010 /* PriorityContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000010 /* PriorityContainerView.swift */; };
@@ -34,7 +23,6 @@
 		A10000010000000000000015 /* RepeatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* RepeatingView.swift */; };
 		A10000010000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* SettingsView.swift */; };
 		A10000010000000000000017 /* YATATheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000017 /* YATATheme.swift */; };
-		A10000010000000000000033 /* RepeatingItemData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000033 /* RepeatingItemData.swift */; };
 		A10000010000000000000019 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000019 /* Assets.xcassets */; };
 		A10000010000000000000020 /* RepeatFrequency.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000020 /* RepeatFrequency.swift */; };
 		A10000010000000000000021 /* RepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000021 /* RepeatingItem.swift */; };
@@ -49,11 +37,23 @@
 		A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000030 /* RepeatingAddEditMode.swift */; };
 		A10000010000000000000031 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000031 /* Weekday.swift */; };
 		A10000010000000000000032 /* WeekStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000032 /* WeekStripView.swift */; };
+		A10000010000000000000033 /* RepeatingItemData.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000033 /* RepeatingItemData.swift */; };
 		A10000010000000000000034 /* DotRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000034 /* DotRingView.swift */; };
 		A10000010000000000000035 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000035 /* AppDelegate.swift */; };
 		A10000010000000000000036 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000036 /* NotificationScheduler.swift */; };
 		A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000037 /* NotificationPermissionManager.swift */; };
 		B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* LocalTodoRepositoryTests.swift */; };
+		C10000010000000000000001 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000001 /* APIClient.swift */; };
+		C10000010000000000000002 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000002 /* APIError.swift */; };
+		C10000010000000000000003 /* Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000003 /* Endpoint.swift */; };
+		C10000010000000000000004 /* APITodoItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000004 /* APITodoItem.swift */; };
+		C10000010000000000000005 /* APIRepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000005 /* APIRepeatingItem.swift */; };
+		C10000010000000000000006 /* RequestBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000006 /* RequestBodies.swift */; };
+		C10000010000000000000007 /* ResponseBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000007 /* ResponseBodies.swift */; };
+		C10000010000000000000008 /* EndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000008 /* EndpointTests.swift */; };
+		C10000010000000000000009 /* DTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000009 /* DTOTests.swift */; };
+		C10000010000000000000010 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000010 /* APIClientTests.swift */; };
+		C10000010000000000000011 /* ModelMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000011 /* ModelMigrationTests.swift */; };
 		D10000010000000000000001 /* PendingMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000001 /* PendingMutation.swift */; };
 		D10000010000000000000002 /* MutationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000002 /* MutationLogger.swift */; };
 		D10000010000000000000003 /* CachingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000003 /* CachingRepository.swift */; };
@@ -61,6 +61,8 @@
 		D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000005 /* CachingRepositoryTests.swift */; };
 		E10000010000000000000001 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000010000000000000001 /* SyncEngine.swift */; };
 		E10000010000000000000002 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000010000000000000002 /* SyncEngineTests.swift */; };
+		F10000010000000000000001 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000001 /* KeychainHelper.swift */; };
+		F10000010000000000000002 /* RepositoryProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000002 /* RepositoryProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,17 +82,6 @@
 		A20000010000000000000004 /* TodoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodoRepository.swift; sourceTree = "<group>"; };
 		A20000010000000000000005 /* LocalTodoRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepository.swift; sourceTree = "<group>"; };
 		A20000010000000000000007 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
-		C20000010000000000000001 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
-		C20000010000000000000002 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
-		C20000010000000000000003 /* Endpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
-		C20000010000000000000004 /* APITodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITodoItem.swift; sourceTree = "<group>"; };
-		C20000010000000000000005 /* APIRepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRepeatingItem.swift; sourceTree = "<group>"; };
-		C20000010000000000000006 /* RequestBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBodies.swift; sourceTree = "<group>"; };
-		C20000010000000000000007 /* ResponseBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBodies.swift; sourceTree = "<group>"; };
-		C20000010000000000000008 /* EndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointTests.swift; sourceTree = "<group>"; };
-		C20000010000000000000009 /* DTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOTests.swift; sourceTree = "<group>"; };
-		C20000010000000000000010 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
-		C20000010000000000000011 /* ModelMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMigrationTests.swift; sourceTree = "<group>"; };
 		A20000010000000000000008 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		A20000010000000000000009 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000010000000000000010 /* PriorityContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriorityContainerView.swift; sourceTree = "<group>"; };
@@ -101,7 +92,6 @@
 		A20000010000000000000015 /* RepeatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingView.swift; sourceTree = "<group>"; };
 		A20000010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000010000000000000017 /* YATATheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATheme.swift; sourceTree = "<group>"; };
-		A20000010000000000000033 /* RepeatingItemData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItemData.swift; sourceTree = "<group>"; };
 		A20000010000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000010000000000000020 /* RepeatFrequency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatFrequency.swift; sourceTree = "<group>"; };
 		A20000010000000000000021 /* RepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItem.swift; sourceTree = "<group>"; };
@@ -116,6 +106,7 @@
 		A20000010000000000000030 /* RepeatingAddEditMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingAddEditMode.swift; sourceTree = "<group>"; };
 		A20000010000000000000031 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weekday.swift; sourceTree = "<group>"; };
 		A20000010000000000000032 /* WeekStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekStripView.swift; sourceTree = "<group>"; };
+		A20000010000000000000033 /* RepeatingItemData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItemData.swift; sourceTree = "<group>"; };
 		A20000010000000000000034 /* DotRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotRingView.swift; sourceTree = "<group>"; };
 		A20000010000000000000035 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A20000010000000000000036 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
@@ -123,6 +114,17 @@
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000010000000000000001 /* LocalTodoRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepositoryTests.swift; sourceTree = "<group>"; };
 		B30000010000000000000002 /* YATATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YATATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C20000010000000000000001 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		C20000010000000000000002 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
+		C20000010000000000000003 /* Endpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoint.swift; sourceTree = "<group>"; };
+		C20000010000000000000004 /* APITodoItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APITodoItem.swift; sourceTree = "<group>"; };
+		C20000010000000000000005 /* APIRepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIRepeatingItem.swift; sourceTree = "<group>"; };
+		C20000010000000000000006 /* RequestBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBodies.swift; sourceTree = "<group>"; };
+		C20000010000000000000007 /* ResponseBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBodies.swift; sourceTree = "<group>"; };
+		C20000010000000000000008 /* EndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000009 /* DTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000010 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000011 /* ModelMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMigrationTests.swift; sourceTree = "<group>"; };
 		D20000010000000000000001 /* PendingMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMutation.swift; sourceTree = "<group>"; };
 		D20000010000000000000002 /* MutationLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationLogger.swift; sourceTree = "<group>"; };
 		D20000010000000000000003 /* CachingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepository.swift; sourceTree = "<group>"; };
@@ -130,6 +132,8 @@
 		D20000010000000000000005 /* CachingRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepositoryTests.swift; sourceTree = "<group>"; };
 		E20000010000000000000001 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		E20000010000000000000002 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
+		F20000010000000000000001 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		F20000010000000000000002 /* RepositoryProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -208,28 +212,6 @@
 			path = Repository;
 			sourceTree = "<group>";
 		};
-		C50000010000000000000001 /* Networking */ = {
-			isa = PBXGroup;
-			children = (
-				C20000010000000000000001 /* APIClient.swift */,
-				C20000010000000000000002 /* APIError.swift */,
-				C20000010000000000000003 /* Endpoint.swift */,
-				C50000010000000000000002 /* DTOs */,
-			);
-			path = Networking;
-			sourceTree = "<group>";
-		};
-		C50000010000000000000002 /* DTOs */ = {
-			isa = PBXGroup;
-			children = (
-				C20000010000000000000004 /* APITodoItem.swift */,
-				C20000010000000000000005 /* APIRepeatingItem.swift */,
-				C20000010000000000000006 /* RequestBodies.swift */,
-				C20000010000000000000007 /* ResponseBodies.swift */,
-			);
-			path = DTOs;
-			sourceTree = "<group>";
-		};
 		A50000010000000000000005 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -267,24 +249,6 @@
 			path = Theme;
 			sourceTree = "<group>";
 		};
-		A50000010000000000000010 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				A20000010000000000000036 /* NotificationScheduler.swift */,
-				A20000010000000000000037 /* NotificationPermissionManager.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		D50000010000000000000001 /* Sync */ = {
-			isa = PBXGroup;
-			children = (
-				D20000010000000000000002 /* MutationLogger.swift */,
-				E20000010000000000000001 /* SyncEngine.swift */,
-			);
-			path = Sync;
-			sourceTree = "<group>";
-		};
 		A50000010000000000000008 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
@@ -301,6 +265,17 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		A50000010000000000000010 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000036 /* NotificationScheduler.swift */,
+				A20000010000000000000037 /* NotificationPermissionManager.swift */,
+				F20000010000000000000001 /* KeychainHelper.swift */,
+				F20000010000000000000002 /* RepositoryProvider.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		B50000010000000000000001 /* YATATests */ = {
 			isa = PBXGroup;
 			children = (
@@ -314,6 +289,37 @@
 				E20000010000000000000002 /* SyncEngineTests.swift */,
 			);
 			path = YATATests;
+			sourceTree = "<group>";
+		};
+		C50000010000000000000001 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				C20000010000000000000001 /* APIClient.swift */,
+				C20000010000000000000002 /* APIError.swift */,
+				C20000010000000000000003 /* Endpoint.swift */,
+				C50000010000000000000002 /* DTOs */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+		C50000010000000000000002 /* DTOs */ = {
+			isa = PBXGroup;
+			children = (
+				C20000010000000000000004 /* APITodoItem.swift */,
+				C20000010000000000000005 /* APIRepeatingItem.swift */,
+				C20000010000000000000006 /* RequestBodies.swift */,
+				C20000010000000000000007 /* ResponseBodies.swift */,
+			);
+			path = DTOs;
+			sourceTree = "<group>";
+		};
+		D50000010000000000000001 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				D20000010000000000000002 /* MutationLogger.swift */,
+				E20000010000000000000001 /* SyncEngine.swift */,
+			);
+			path = Sync;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -354,14 +360,6 @@
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
-
-/* Begin PBXTargetDependency section */
-		B30000010000000000000003 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = A60000010000000000000001 /* YATA */;
-			targetProxy = B30000010000000000000001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		A90000010000000000000001 /* Project object */ = {
@@ -411,21 +409,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		B70000010000000000000001 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */,
-				C10000010000000000000008 /* EndpointTests.swift in Sources */,
-				C10000010000000000000009 /* DTOTests.swift in Sources */,
-				C10000010000000000000010 /* APIClientTests.swift in Sources */,
-				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
-				D10000010000000000000004 /* MutationLoggerTests.swift in Sources */,
-				D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */,
-				E10000010000000000000002 /* SyncEngineTests.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		A70000010000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -471,14 +454,39 @@
 				A10000010000000000000030 /* RepeatingAddEditMode.swift in Sources */,
 				A10000010000000000000031 /* Weekday.swift in Sources */,
 				A10000010000000000000032 /* WeekStripView.swift in Sources */,
-			A10000010000000000000034 /* DotRingView.swift in Sources */,
-			A10000010000000000000035 /* AppDelegate.swift in Sources */,
-			A10000010000000000000036 /* NotificationScheduler.swift in Sources */,
-			A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */,
+				A10000010000000000000034 /* DotRingView.swift in Sources */,
+				A10000010000000000000035 /* AppDelegate.swift in Sources */,
+				A10000010000000000000036 /* NotificationScheduler.swift in Sources */,
+				A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */,
+				F10000010000000000000001 /* KeychainHelper.swift in Sources */,
+				F10000010000000000000002 /* RepositoryProvider.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B70000010000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */,
+				C10000010000000000000008 /* EndpointTests.swift in Sources */,
+				C10000010000000000000009 /* DTOTests.swift in Sources */,
+				C10000010000000000000010 /* APIClientTests.swift in Sources */,
+				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
+				D10000010000000000000004 /* MutationLoggerTests.swift in Sources */,
+				D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */,
+				E10000010000000000000002 /* SyncEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B30000010000000000000003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A60000010000000000000001 /* YATA */;
+			targetProxy = B30000010000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA000001000000000000001 /* Debug */ = {
@@ -610,6 +618,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q84RXWDZD7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = YATA;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -639,6 +648,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q84RXWDZD7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = YATA;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
