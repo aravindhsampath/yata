@@ -17,6 +17,7 @@ final class TodoItem {
     var sourceRepeatingID: UUID?
     var sourceRepeatingRuleName: String?
     var rescheduleCount: Int = 0
+    var updatedAt: Date?
 
     var priority: Priority {
         get { Priority(rawValue: priorityRawValue) ?? .medium }

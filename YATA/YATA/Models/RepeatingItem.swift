@@ -12,6 +12,7 @@ final class RepeatingItem {
     var scheduledMonth: Int?       // 1-12
     var sortOrder: Int = 0
     var createdAt: Date = Date.now
+    var updatedAt: Date?
     var defaultUrgencyRawValue: Int = 2  // Priority.high (green / "Do Today")
 
     var frequency: RepeatFrequency {
