@@ -54,6 +54,11 @@
 		A10000010000000000000036 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000036 /* NotificationScheduler.swift */; };
 		A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000037 /* NotificationPermissionManager.swift */; };
 		B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* LocalTodoRepositoryTests.swift */; };
+		D10000010000000000000001 /* PendingMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000001 /* PendingMutation.swift */; };
+		D10000010000000000000002 /* MutationLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000002 /* MutationLogger.swift */; };
+		D10000010000000000000003 /* CachingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000003 /* CachingRepository.swift */; };
+		D10000010000000000000004 /* MutationLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000004 /* MutationLoggerTests.swift */; };
+		D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000005 /* CachingRepositoryTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +121,11 @@
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000010000000000000001 /* LocalTodoRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepositoryTests.swift; sourceTree = "<group>"; };
 		B30000010000000000000002 /* YATATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YATATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D20000010000000000000001 /* PendingMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMutation.swift; sourceTree = "<group>"; };
+		D20000010000000000000002 /* MutationLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationLogger.swift; sourceTree = "<group>"; };
+		D20000010000000000000003 /* CachingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepository.swift; sourceTree = "<group>"; };
+		D20000010000000000000004 /* MutationLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationLoggerTests.swift; sourceTree = "<group>"; };
+		D20000010000000000000005 /* CachingRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepositoryTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -153,6 +163,7 @@
 				A50000010000000000000003 /* Models */,
 				A50000010000000000000004 /* Repository */,
 				C50000010000000000000001 /* Networking */,
+				D50000010000000000000001 /* Sync */,
 				A50000010000000000000010 /* Services */,
 				A50000010000000000000005 /* ViewModels */,
 				A50000010000000000000006 /* Views */,
@@ -176,6 +187,7 @@
 				A20000010000000000000030 /* RepeatingAddEditMode.swift */,
 				A20000010000000000000031 /* Weekday.swift */,
 				A20000010000000000000033 /* RepeatingItemData.swift */,
+				D20000010000000000000001 /* PendingMutation.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -187,6 +199,7 @@
 				A20000010000000000000005 /* LocalTodoRepository.swift */,
 				A20000010000000000000022 /* RepeatingRepository.swift */,
 				A20000010000000000000023 /* LocalRepeatingRepository.swift */,
+				D20000010000000000000003 /* CachingRepository.swift */,
 			);
 			path = Repository;
 			sourceTree = "<group>";
@@ -259,6 +272,14 @@
 			path = Services;
 			sourceTree = "<group>";
 		};
+		D50000010000000000000001 /* Sync */ = {
+			isa = PBXGroup;
+			children = (
+				D20000010000000000000002 /* MutationLogger.swift */,
+			);
+			path = Sync;
+			sourceTree = "<group>";
+		};
 		A50000010000000000000008 /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
@@ -283,6 +304,8 @@
 				C20000010000000000000009 /* DTOTests.swift */,
 				C20000010000000000000010 /* APIClientTests.swift */,
 				C20000010000000000000011 /* ModelMigrationTests.swift */,
+				D20000010000000000000004 /* MutationLoggerTests.swift */,
+				D20000010000000000000005 /* CachingRepositoryTests.swift */,
 			);
 			path = YATATests;
 			sourceTree = "<group>";
@@ -391,6 +414,8 @@
 				C10000010000000000000009 /* DTOTests.swift in Sources */,
 				C10000010000000000000010 /* APIClientTests.swift in Sources */,
 				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
+				D10000010000000000000004 /* MutationLoggerTests.swift in Sources */,
+				D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -426,6 +451,9 @@
 				A10000010000000000000021 /* RepeatingItem.swift in Sources */,
 				A10000010000000000000022 /* RepeatingRepository.swift in Sources */,
 				A10000010000000000000023 /* LocalRepeatingRepository.swift in Sources */,
+				D10000010000000000000001 /* PendingMutation.swift in Sources */,
+				D10000010000000000000002 /* MutationLogger.swift in Sources */,
+				D10000010000000000000003 /* CachingRepository.swift in Sources */,
 				A10000010000000000000024 /* RepeatingViewModel.swift in Sources */,
 				A10000010000000000000025 /* RepeatingPillView.swift in Sources */,
 				A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */,
