@@ -6,6 +6,7 @@ struct AddEditSheet: View {
     let onDelete: (() -> Void)?
     let onReschedule: ((Date) -> Void)?
     let sourceRuleName: String?
+    let permissionManager: NotificationPermissionManager
 
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
@@ -20,13 +21,15 @@ struct AddEditSheet: View {
         onSave: @escaping (String, Date?) -> Void,
         onDelete: (() -> Void)?,
         onReschedule: ((Date) -> Void)? = nil,
-        sourceRuleName: String? = nil
+        sourceRuleName: String? = nil,
+        permissionManager: NotificationPermissionManager
     ) {
         self.mode = mode
         self.onSave = onSave
         self.onDelete = onDelete
         self.onReschedule = onReschedule
         self.sourceRuleName = sourceRuleName
+        self.permissionManager = permissionManager
 
         switch mode {
         case .add:
@@ -94,7 +97,7 @@ struct AddEditSheet: View {
                 }
             }
             .sheet(isPresented: $showReminderPicker) {
-                ReminderPickerSheet(selectedDate: $reminderDate)
+                ReminderPickerSheet(selectedDate: $reminderDate, permissionManager: permissionManager)
             }
             .sheet(isPresented: $showReschedulePicker) {
                 rescheduleSheet

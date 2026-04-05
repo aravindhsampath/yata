@@ -4,11 +4,12 @@ import SwiftData
 struct HomeView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel: HomeViewModel?
+    @State private var permissionManager = NotificationPermissionManager()
 
     var body: some View {
         Group {
             if let viewModel {
-                HomeContentView(viewModel: viewModel)
+                HomeContentView(viewModel: viewModel, permissionManager: permissionManager)
             } else {
                 ProgressView()
             }
@@ -23,11 +24,16 @@ struct HomeView: View {
                 await vm.loadAll()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .yataDataDidChange)) { _ in
+            guard let viewModel else { return }
+            Task { await viewModel.loadAll() }
+        }
     }
 }
 
 private struct HomeContentView: View {
     @Bindable var viewModel: HomeViewModel
+    let permissionManager: NotificationPermissionManager
     @AppStorage("doneListSize") private var doneListSize = 25
     @Environment(\.horizontalSizeClass) private var sizeClass
 
@@ -97,7 +103,8 @@ private struct HomeContentView: View {
                 onReschedule: { date in
                     Task { await viewModel.rescheduleItem(item, to: date) }
                 },
-                sourceRuleName: item.sourceRepeatingRuleName
+                sourceRuleName: item.sourceRepeatingRuleName,
+                permissionManager: permissionManager
             )
         }
         .sheet(item: $viewModel.addingToPriority) { priority in
@@ -112,7 +119,8 @@ private struct HomeContentView: View {
                         )
                     }
                 },
-                onDelete: nil
+                onDelete: nil,
+                permissionManager: permissionManager
             )
         }
         .alert("Error", isPresented: $viewModel.hasError) {

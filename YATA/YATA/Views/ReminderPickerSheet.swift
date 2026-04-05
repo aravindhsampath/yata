@@ -1,10 +1,13 @@
 import SwiftUI
+import UserNotifications
 
 struct ReminderPickerSheet: View {
     @Binding var selectedDate: Date?
+    var permissionManager: NotificationPermissionManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var pickerDate = Date.now
+    @State private var showPermissionAlert = false
 
     var body: some View {
         NavigationStack {
@@ -26,6 +29,20 @@ struct ReminderPickerSheet: View {
                 .datePickerStyle(.wheel)
                 .frame(height: 100)
 
+                if permissionManager.authorizationStatus == .denied {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bell.slash")
+                            .font(.caption2)
+                        Text("Notifications are off.")
+                            .font(.caption)
+                        Button("Enable in Settings") {
+                            permissionManager.openSettings()
+                        }
+                        .font(.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+
                 Spacer()
             }
             .padding()
@@ -37,10 +54,23 @@ struct ReminderPickerSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        selectedDate = pickerDate
-                        dismiss()
+                        saveReminder()
                     }
                 }
+            }
+            .alert("Enable Notifications?", isPresented: $showPermissionAlert) {
+                Button("Not Now") {
+                    // Save anyway without notification permission
+                    commitSave()
+                }
+                Button("Enable") {
+                    Task {
+                        _ = await permissionManager.requestPermission()
+                        commitSave()
+                    }
+                }
+            } message: {
+                Text("YATA needs notification permission to remind you about this task at the scheduled time.")
             }
         }
         .presentationDetents([.large])
@@ -48,6 +78,20 @@ struct ReminderPickerSheet: View {
             if let selectedDate {
                 pickerDate = selectedDate
             }
+            await permissionManager.checkStatus()
         }
+    }
+
+    private func saveReminder() {
+        if permissionManager.authorizationStatus == .notDetermined {
+            showPermissionAlert = true
+        } else {
+            commitSave()
+        }
+    }
+
+    private func commitSave() {
+        selectedDate = pickerDate
+        dismiss()
     }
 }
