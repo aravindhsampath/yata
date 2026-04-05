@@ -40,6 +40,9 @@
 		A10000010000000000000031 /* Weekday.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000031 /* Weekday.swift */; };
 		A10000010000000000000032 /* WeekStripView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000032 /* WeekStripView.swift */; };
 		A10000010000000000000034 /* DotRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000034 /* DotRingView.swift */; };
+		A10000010000000000000035 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000035 /* AppDelegate.swift */; };
+		A10000010000000000000036 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000036 /* NotificationScheduler.swift */; };
+		A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000037 /* NotificationPermissionManager.swift */; };
 		B10000010000000000000001 /* LocalTodoRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000010000000000000001 /* LocalTodoRepositoryTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -87,6 +90,9 @@
 		A20000010000000000000031 /* Weekday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weekday.swift; sourceTree = "<group>"; };
 		A20000010000000000000032 /* WeekStripView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeekStripView.swift; sourceTree = "<group>"; };
 		A20000010000000000000034 /* DotRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotRingView.swift; sourceTree = "<group>"; };
+		A20000010000000000000035 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A20000010000000000000036 /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		A20000010000000000000037 /* NotificationPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionManager.swift; sourceTree = "<group>"; };
 		A30000010000000000000001 /* YATA.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YATA.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B20000010000000000000001 /* LocalTodoRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTodoRepositoryTests.swift; sourceTree = "<group>"; };
 		B30000010000000000000002 /* YATATests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YATATests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -123,8 +129,10 @@
 			isa = PBXGroup;
 			children = (
 				A20000010000000000000001 /* YATAApp.swift */,
+				A20000010000000000000035 /* AppDelegate.swift */,
 				A50000010000000000000003 /* Models */,
 				A50000010000000000000004 /* Repository */,
+				A50000010000000000000010 /* Services */,
 				A50000010000000000000005 /* ViewModels */,
 				A50000010000000000000006 /* Views */,
 				A50000010000000000000007 /* Theme */,
@@ -198,6 +206,15 @@
 				A20000010000000000000017 /* YATATheme.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		A50000010000000000000010 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000036 /* NotificationScheduler.swift */,
+				A20000010000000000000037 /* NotificationPermissionManager.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		A50000010000000000000008 /* Utilities */ = {
@@ -363,6 +380,9 @@
 				A10000010000000000000031 /* Weekday.swift in Sources */,
 				A10000010000000000000032 /* WeekStripView.swift in Sources */,
 			A10000010000000000000034 /* DotRingView.swift in Sources */,
+			A10000010000000000000035 /* AppDelegate.swift in Sources */,
+			A10000010000000000000036 /* NotificationScheduler.swift in Sources */,
+			A10000010000000000000037 /* NotificationPermissionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

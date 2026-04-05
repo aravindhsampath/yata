@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 
 @MainActor
 @Observable
@@ -79,6 +80,14 @@ final class HomeViewModel {
             doneItems = try await repository.fetchDoneItems(limit: doneListLimit)
             todayDoneCount = try await repository.countDoneItems(for: selectedDate)
             weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
+            // Sync notifications on load
+            let allActiveItems = (highItems + mediumItems + lowItems)
+            NotificationScheduler.syncAllReminders(items: allActiveItems)
+
+            // Set badge to overdue reminder count
+            let now = Date.now
+            let overdueCount = allActiveItems.filter { ($0.reminderDate ?? .distantFuture) < now }.count
+            try? await UNUserNotificationCenter.current().setBadgeCount(overdueCount)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -111,6 +120,7 @@ final class HomeViewModel {
         item.completedAt = .now
         do {
             try await repository.update(item)
+            NotificationScheduler.cancelReminder(for: item.id)
             removeFromPriorityArray(item)
             doneItems.insert(item, at: 0)
             if doneItems.count > doneListLimit {
@@ -153,6 +163,7 @@ final class HomeViewModel {
         )
         do {
             try await repository.add(item)
+            NotificationScheduler.scheduleReminder(for: item)
             appendToPriorityArray(item)
         } catch {
             errorMessage = error.localizedDescription
@@ -162,6 +173,8 @@ final class HomeViewModel {
     func updateItem(_ item: TodoItem) async {
         do {
             try await repository.update(item)
+            NotificationScheduler.cancelReminder(for: item.id)
+            NotificationScheduler.scheduleReminder(for: item)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -170,6 +183,7 @@ final class HomeViewModel {
     func deleteItem(_ item: TodoItem) async {
         do {
             try await repository.delete(item)
+            NotificationScheduler.cancelReminder(for: item.id)
             removeFromPriorityArray(item)
             doneItems.removeAll { $0.id == item.id }
         } catch {
@@ -278,6 +292,8 @@ final class HomeViewModel {
     func rescheduleItem(_ item: TodoItem, to date: Date) async {
         do {
             try await repository.reschedule(item, to: date, resetCount: true)
+            NotificationScheduler.cancelReminder(for: item.id)
+            NotificationScheduler.scheduleReminder(for: item)
             removeFromPriorityArray(item)
         } catch {
             errorMessage = error.localizedDescription
@@ -288,6 +304,16 @@ final class HomeViewModel {
         let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now))!
         do {
             try await repository.reschedule(item, to: tomorrow, resetCount: false)
+            NotificationScheduler.cancelReminder(for: item.id)
+            // Preserve time-of-day for the reminder on the new day
+            if let oldReminder = item.reminderDate {
+                let calendar = Calendar.current
+                let timeComponents = calendar.dateComponents([.hour, .minute], from: oldReminder)
+                item.reminderDate = calendar.date(bySettingHour: timeComponents.hour ?? 9,
+                                                   minute: timeComponents.minute ?? 0,
+                                                   second: 0, of: tomorrow)
+                NotificationScheduler.scheduleReminder(for: item)
+            }
             removeFromPriorityArray(item)
             await refreshWeekTaskCounts()
         } catch {
