@@ -59,6 +59,8 @@
 		D10000010000000000000003 /* CachingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000003 /* CachingRepository.swift */; };
 		D10000010000000000000004 /* MutationLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000004 /* MutationLoggerTests.swift */; };
 		D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000005 /* CachingRepositoryTests.swift */; };
+		E10000010000000000000001 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000010000000000000001 /* SyncEngine.swift */; };
+		E10000010000000000000002 /* SyncEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000010000000000000002 /* SyncEngineTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -126,6 +128,8 @@
 		D20000010000000000000003 /* CachingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepository.swift; sourceTree = "<group>"; };
 		D20000010000000000000004 /* MutationLoggerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutationLoggerTests.swift; sourceTree = "<group>"; };
 		D20000010000000000000005 /* CachingRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepositoryTests.swift; sourceTree = "<group>"; };
+		E20000010000000000000001 /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
+		E20000010000000000000002 /* SyncEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -276,6 +280,7 @@
 			isa = PBXGroup;
 			children = (
 				D20000010000000000000002 /* MutationLogger.swift */,
+				E20000010000000000000001 /* SyncEngine.swift */,
 			);
 			path = Sync;
 			sourceTree = "<group>";
@@ -306,6 +311,7 @@
 				C20000010000000000000011 /* ModelMigrationTests.swift */,
 				D20000010000000000000004 /* MutationLoggerTests.swift */,
 				D20000010000000000000005 /* CachingRepositoryTests.swift */,
+				E20000010000000000000002 /* SyncEngineTests.swift */,
 			);
 			path = YATATests;
 			sourceTree = "<group>";
@@ -416,6 +422,7 @@
 				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
 				D10000010000000000000004 /* MutationLoggerTests.swift in Sources */,
 				D10000010000000000000005 /* CachingRepositoryTests.swift in Sources */,
+				E10000010000000000000002 /* SyncEngineTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -454,6 +461,7 @@
 				D10000010000000000000001 /* PendingMutation.swift in Sources */,
 				D10000010000000000000002 /* MutationLogger.swift in Sources */,
 				D10000010000000000000003 /* CachingRepository.swift in Sources */,
+				E10000010000000000000001 /* SyncEngine.swift in Sources */,
 				A10000010000000000000024 /* RepeatingViewModel.swift in Sources */,
 				A10000010000000000000025 /* RepeatingPillView.swift in Sources */,
 				A10000010000000000000026 /* RepeatingAddEditSheet.swift in Sources */,

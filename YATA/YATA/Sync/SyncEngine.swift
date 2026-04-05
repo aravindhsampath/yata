@@ -79,9 +79,10 @@ actor SyncEngine {
                     try await handleNotFound(snapshot: snapshot)
                 default:
                     // Increment retry count and record error
+                    let mutationID = snapshot.id
                     try await MainActor.run {
                         let descriptor = FetchDescriptor<PendingMutation>(
-                            predicate: #Predicate<PendingMutation> { $0.id == snapshot.id }
+                            predicate: #Predicate<PendingMutation> { $0.id == mutationID }
                         )
                         if let mutation = try modelContext.fetch(descriptor).first {
                             mutation.retryCount += 1
@@ -293,59 +294,123 @@ actor SyncEngine {
         let payload = snapshot.payload
         let entityID = snapshot.entityID
 
+        // Decode the snake_case JSON payload into a dictionary
+        let d = (try? JSONSerialization.jsonObject(with: payload) as? [String: Any]) ?? [:]
+
         switch (entityType, mutationType) {
         case ("todoItem", "create"):
-            let body = try payloadDecoder.decode(CreateItemRequest.self, from: payload)
-            return .createItem(body: body)
+            return .createItem(body: CreateItemRequest(
+                id: uuid(d, "id") ?? entityID,
+                title: str(d, "title"),
+                priority: int(d, "priority"),
+                scheduledDate: str(d, "scheduled_date"),
+                reminderDate: d["reminder_date"] as? String,
+                sortOrder: int(d, "sort_order"),
+                sourceRepeatingId: uuid(d, "source_repeating_id"),
+                sourceRepeatingRuleName: d["source_repeating_rule_name"] as? String
+            ))
 
         case ("todoItem", "update"):
-            let body = try payloadDecoder.decode(UpdateItemRequest.self, from: payload)
-            return .updateItem(id: entityID, body: body)
+            return .updateItem(id: entityID, body: UpdateItemRequest(
+                title: str(d, "title"),
+                priority: int(d, "priority"),
+                isDone: (d["is_done"] as? Bool) ?? false,
+                sortOrder: int(d, "sort_order"),
+                reminderDate: d["reminder_date"] as? String,
+                scheduledDate: str(d, "scheduled_date"),
+                rescheduleCount: int(d, "reschedule_count"),
+                updatedAt: d["updated_at"] as? String
+            ))
 
         case ("todoItem", "delete"):
             return .deleteItem(id: entityID)
 
         case ("todoItem", "reorder"):
-            let body = try payloadDecoder.decode(ReorderRequest.self, from: payload)
-            return .reorderItems(body: body)
+            let uuidStrings = (d["ids"] as? [String]) ?? []
+            return .reorderItems(body: ReorderRequest(
+                date: str(d, "date"),
+                priority: int(d, "priority"),
+                ids: uuidStrings.compactMap { UUID(uuidString: $0) }
+            ))
 
         case ("todoItem", "move"):
-            let body = try payloadDecoder.decode(MoveRequest.self, from: payload)
-            return .moveItem(id: entityID, body: body)
+            return .moveItem(id: entityID, body: MoveRequest(
+                toPriority: int(d, "to_priority"),
+                atIndex: int(d, "at_index")
+            ))
 
         case ("todoItem", "done"):
             return .markDone(id: entityID)
 
         case ("todoItem", "undone"):
-            let body = try payloadDecoder.decode(UndoneRequest.self, from: payload)
-            return .markUndone(id: entityID, body: body)
+            return .markUndone(id: entityID, body: UndoneRequest(
+                scheduledDate: str(d, "scheduled_date")
+            ))
 
         case ("todoItem", "reschedule"):
-            let body = try payloadDecoder.decode(RescheduleRequest.self, from: payload)
-            return .rescheduleItem(id: entityID, body: body)
+            return .rescheduleItem(id: entityID, body: RescheduleRequest(
+                toDate: str(d, "to_date"),
+                resetCount: (d["reset_count"] as? Bool) ?? false
+            ))
 
         case ("todoItem", "rollover"):
-            let body = try payloadDecoder.decode(RolloverRequest.self, from: payload)
-            return .rollover(body: body)
+            return .rollover(body: RolloverRequest(
+                toDate: str(d, "to_date")
+            ))
 
         case ("todoItem", "materialize"):
-            let body = try payloadDecoder.decode(MaterializeRequest.self, from: payload)
-            return .materialize(body: body)
+            return .materialize(body: MaterializeRequest(
+                startDate: str(d, "start_date"),
+                endDate: str(d, "end_date")
+            ))
 
         case ("repeatingItem", "create"):
-            let body = try payloadDecoder.decode(CreateRepeatingRequest.self, from: payload)
-            return .createRepeating(body: body)
+            return .createRepeating(body: CreateRepeatingRequest(
+                id: uuid(d, "id") ?? entityID,
+                title: str(d, "title"),
+                frequency: int(d, "frequency"),
+                scheduledTime: str(d, "scheduled_time"),
+                scheduledDayOfWeek: d["scheduled_day_of_week"] as? Int,
+                scheduledDayOfMonth: d["scheduled_day_of_month"] as? Int,
+                scheduledMonth: d["scheduled_month"] as? Int,
+                sortOrder: int(d, "sort_order"),
+                defaultUrgency: int(d, "default_urgency")
+            ))
 
         case ("repeatingItem", "update"):
-            let body = try payloadDecoder.decode(UpdateRepeatingRequest.self, from: payload)
-            return .updateRepeating(id: entityID, body: body)
+            return .updateRepeating(id: entityID, body: UpdateRepeatingRequest(
+                title: str(d, "title"),
+                frequency: int(d, "frequency"),
+                scheduledTime: str(d, "scheduled_time"),
+                scheduledDayOfWeek: d["scheduled_day_of_week"] as? Int,
+                scheduledDayOfMonth: d["scheduled_day_of_month"] as? Int,
+                scheduledMonth: d["scheduled_month"] as? Int,
+                sortOrder: int(d, "sort_order"),
+                defaultUrgency: int(d, "default_urgency"),
+                updatedAt: d["updated_at"] as? String
+            ))
 
         case ("repeatingItem", "delete"):
             return .deleteRepeating(id: entityID)
 
         default:
-            throw APIError.invalidURL // Shouldn't happen with valid data
+            throw APIError.invalidURL
         }
+    }
+
+    // MARK: - Dictionary extraction helpers
+
+    private func str(_ d: [String: Any], _ key: String) -> String {
+        (d[key] as? String) ?? ""
+    }
+
+    private func int(_ d: [String: Any], _ key: String) -> Int {
+        (d[key] as? Int) ?? 0
+    }
+
+    private func uuid(_ d: [String: Any], _ key: String) -> UUID? {
+        guard let s = d[key] as? String else { return nil }
+        return UUID(uuidString: s)
     }
 
     // MARK: - Private: Helpers
@@ -463,17 +528,3 @@ extension SyncEngine {
     }
 }
 
-// MARK: - Decodable conformance for request body structs
-// These are Encodable-only in their original files. SyncEngine needs to decode
-// them from PendingMutation.payload, so we add Decodable conformance here.
-
-extension CreateItemRequest: Decodable {}
-extension UpdateItemRequest: Decodable {}
-extension ReorderRequest: Decodable {}
-extension MoveRequest: Decodable {}
-extension UndoneRequest: Decodable {}
-extension RescheduleRequest: Decodable {}
-extension RolloverRequest: Decodable {}
-extension MaterializeRequest: Decodable {}
-extension CreateRepeatingRequest: Decodable {}
-extension UpdateRepeatingRequest: Decodable {}
