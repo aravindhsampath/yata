@@ -18,3 +18,9 @@ build/
 # Claude
 .claude/
 yata_backend/target/
+
+# Backend dev database
+yata_backend/*.db
+yata_backend/*.db-journal
+yata_backend/*.db-wal
+yata_backend/*.db-shm
