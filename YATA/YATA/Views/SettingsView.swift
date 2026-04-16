@@ -9,7 +9,8 @@ struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var serverURLText = ""
-    @State private var secretText = ""
+    @State private var usernameText = ""
+    @State private var passwordText = ""
     @State private var healthStatus: HealthCheckStatus = .idle
     @State private var connectionState: ConnectionState = .disconnected
     @State private var isSyncing = false
@@ -67,6 +68,9 @@ struct SettingsView: View {
                 if let urlString = KeychainHelper.loadString(forKey: "yata_server_url") {
                     serverURLText = urlString
                 }
+                if let username = KeychainHelper.loadString(forKey: "yata_username") {
+                    usernameText = username
+                }
                 refreshSyncStatus()
             }
         }
@@ -88,7 +92,8 @@ struct SettingsView: View {
                         connectionState = .disconnected
                         healthStatus = .idle
                         serverURLText = ""
-                        secretText = ""
+                        usernameText = ""
+                        passwordText = ""
                     }
                 }
             }
@@ -112,11 +117,17 @@ struct SettingsView: View {
             healthStatusRow
 
             if healthStatus == .reachable {
-                SecureField("Secret", text: $secretText)
+                TextField("Username", text: $usernameText)
+                    .textContentType(.username)
+                    .autocapitalization(.none)
+                    .disableAutocorrection(true)
+
+                SecureField("Password", text: $passwordText)
+                    .textContentType(.password)
                     .onSubmit { authenticate() }
 
                 Button("Authenticate") { authenticate() }
-                    .disabled(secretText.isEmpty)
+                    .disabled(usernameText.isEmpty || passwordText.isEmpty)
             }
 
         case .authenticating:
@@ -157,6 +168,10 @@ struct SettingsView: View {
                 .foregroundStyle(.green)
         }
 
+        if let username = repositoryProvider.connectedUsername {
+            LabeledContent("Signed in as", value: username)
+        }
+
         if let lastSync = repositoryProvider.lastSyncTime() {
             LabeledContent("Last Sync", value: lastSync)
         }
@@ -176,7 +191,8 @@ struct SettingsView: View {
                 connectionState = .disconnected
                 healthStatus = .idle
                 serverURLText = ""
-                secretText = ""
+                usernameText = ""
+                passwordText = ""
             }
         }
     }
@@ -259,10 +275,12 @@ struct SettingsView: View {
         }
         connectionState = .authenticating
 
+        let username = usernameText
+        let password = passwordText
         Task {
             do {
-                let token = try await APIClient.authenticate(serverURL: serverURL, secret: secretText)
-                repositoryProvider.switchToClient(serverURL: serverURL, token: token)
+                let token = try await APIClient.authenticate(serverURL: serverURL, username: username, password: password)
+                repositoryProvider.switchToClient(serverURL: serverURL, username: username, token: token)
                 await performInitialSync(serverURL: serverURL, token: token)
             } catch {
                 showErrorMessage("Authentication failed: \(error.localizedDescription)")
@@ -323,7 +341,7 @@ struct SettingsView: View {
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
 
             connectionState = .connected
-            secretText = ""
+            passwordText = ""
         } catch {
             showErrorMessage("Initial sync failed: \(error.localizedDescription)")
             await repositoryProvider.disconnect()

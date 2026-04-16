@@ -103,7 +103,7 @@ final class APIClient {
         }
     }
 
-    static func authenticate(serverURL: URL, secret: String) async throws -> String {
+    static func authenticate(serverURL: URL, username: String, password: String) async throws -> String {
         guard let url = URL(string: "/auth/token", relativeTo: serverURL) else {
             throw APIError.invalidURL
         }
@@ -114,7 +114,7 @@ final class APIClient {
 
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
-        request.httpBody = try encoder.encode(AuthRequest(secret: secret))
+        request.httpBody = try encoder.encode(AuthRequest(username: username, password: password))
 
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {

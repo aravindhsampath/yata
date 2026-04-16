@@ -13,6 +13,13 @@ final class RepositoryProvider {
         UserDefaults.standard.string(forKey: "serverMode") == "client"
     }
 
+    /// The username the current client-mode session is authenticated as,
+    /// or nil if running in local mode.
+    var connectedUsername: String? {
+        guard isClientMode else { return nil }
+        return KeychainHelper.loadString(forKey: "yata_username")
+    }
+
     private let container: ModelContainer
 
     init(container: ModelContainer) {
@@ -53,8 +60,9 @@ final class RepositoryProvider {
         mutationLogger = nil
     }
 
-    func switchToClient(serverURL: URL, token: String) {
+    func switchToClient(serverURL: URL, username: String, token: String) {
         KeychainHelper.saveString(serverURL.absoluteString, forKey: "yata_server_url")
+        KeychainHelper.saveString(username, forKey: "yata_username")
         KeychainHelper.saveString(token, forKey: "yata_api_token")
         UserDefaults.standard.set("client", forKey: "serverMode")
 
@@ -89,6 +97,7 @@ final class RepositoryProvider {
         }
         KeychainHelper.delete(key: "yata_api_token")
         KeychainHelper.delete(key: "yata_server_url")
+        KeychainHelper.delete(key: "yata_username")
         UserDefaults.standard.removeObject(forKey: "yata_lastSyncTimestamp")
         switchToLocal()
     }

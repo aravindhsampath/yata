@@ -1,7 +1,8 @@
 import Foundation
 
 struct AuthRequest: Encodable {
-    let secret: String
+    let username: String
+    let password: String
 }
 
 struct CreateItemRequest: Encodable {

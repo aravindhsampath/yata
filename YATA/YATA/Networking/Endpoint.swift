@@ -3,7 +3,7 @@ import Foundation
 enum Endpoint {
     // Health & Auth
     case health
-    case authToken(secret: String)
+    case authToken(username: String, password: String)
 
     // Todo Items
     case getItems(date: String, priority: Int?)
@@ -108,8 +108,8 @@ enum Endpoint {
 
     func bodyData(encoder: JSONEncoder) throws -> Data? {
         switch self {
-        case .authToken(let secret):
-            try encoder.encode(AuthRequest(secret: secret))
+        case .authToken(let username, let password):
+            try encoder.encode(AuthRequest(username: username, password: password))
         case .createItem(let body):
             try encoder.encode(body)
         case .updateItem(_, let body):
