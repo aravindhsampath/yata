@@ -50,11 +50,13 @@ pub fn build_router(pool: SqlitePool, config: Config) -> Router {
         // Sync
         .route("/sync", get(handlers::sync::sync));
 
-    // The secret is injected as an Extension for the AuthUser extractor
+    // The JWT signing key is injected as an Extension<String> for the
+    // AuthUser extractor. Config is also injected for handlers that need it.
+    let jwt_secret = config.jwt_secret.clone();
     Router::new()
         .merge(public)
         .merge(protected)
         .layer(Extension(pool))
-        .layer(Extension(config.clone()))
-        .layer(Extension(config.secret))
+        .layer(Extension(config))
+        .layer(Extension(jwt_secret))
 }

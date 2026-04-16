@@ -24,13 +24,13 @@ async fn health_returns_ok() {
 // ─── Auth ──────────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn auth_with_correct_secret() {
+async fn auth_with_correct_credentials() {
     let (app, _pool) = app().await;
     let res = app
         .oneshot(request(
             "POST",
             "/auth/token",
-            Some(json!({"secret": "test-secret"})),
+            Some(json!({"username": "test-user", "password": "test-password"})),
             None,
         ))
         .await
@@ -42,13 +42,28 @@ async fn auth_with_correct_secret() {
 }
 
 #[tokio::test]
-async fn auth_with_wrong_secret() {
+async fn auth_with_wrong_password() {
     let (app, _pool) = app().await;
     let res = app
         .oneshot(request(
             "POST",
             "/auth/token",
-            Some(json!({"secret": "wrong"})),
+            Some(json!({"username": "test-user", "password": "wrong"})),
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn auth_with_unknown_username() {
+    let (app, _pool) = app().await;
+    let res = app
+        .oneshot(request(
+            "POST",
+            "/auth/token",
+            Some(json!({"username": "nobody", "password": "whatever"})),
             None,
         ))
         .await
@@ -634,7 +649,6 @@ async fn body_json(res: axum::response::Response) -> Value {
 }
 
 async fn get_token(pool: &SqlitePool) -> String {
-    let (token, _) = yata_backend::auth::create_token("test-secret").unwrap();
-    let _ = pool; // pool passed for consistency but token is self-contained
-    token
+    let _ = pool; // pool passed for consistency — token is self-contained JWT
+    yata_backend::test_helpers::test_user_token()
 }

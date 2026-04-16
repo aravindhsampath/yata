@@ -2,7 +2,11 @@ use std::env;
 
 #[derive(Clone)]
 pub struct Config {
-    pub secret: String,
+    /// Server-side signing key for JWTs. Must be set; should be a long
+    /// random secret (e.g. `openssl rand -hex 32`). This is NOT a user
+    /// password — users authenticate with username+password and receive
+    /// JWTs signed with this key.
+    pub jwt_secret: String,
     pub db_path: String,
     pub port: u16,
 }
@@ -10,7 +14,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         Self {
-            secret: env::var("YATA_SECRET").expect("YATA_SECRET must be set"),
+            jwt_secret: env::var("YATA_JWT_SECRET").expect("YATA_JWT_SECRET must be set"),
             db_path: env::var("YATA_DB_PATH").unwrap_or_else(|_| "yata.db".to_string()),
             port: env::var("YATA_PORT")
                 .ok()
