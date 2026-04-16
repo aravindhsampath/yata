@@ -1,9 +1,9 @@
 # YATA API Specification
 
-**Version:** 1.0
-**Transport:** HTTPS (enforced)
+**Version:** 2.0
+**Transport:** HTTPS (enforced in production)
 **Format:** JSON
-**Auth:** Bearer token
+**Auth:** Bearer token (JWT, per-user)
 
 ---
 
@@ -17,20 +17,25 @@
 - Successful responses: 200 (body), 201 (created), 204 (no content)
 - Errors: 400, 401, 404, 409, 422, 500
 
+### Multi-tenancy
+
+The server is **multi-tenant**: every TodoItem, RepeatingItem, and deletion_log row is scoped to a `user_id` derived from the caller's bearer token. Entities belonging to one user are invisible to every other user. A request that references an id owned by another user receives `404 Not Found` — the server never reveals the existence of cross-tenant data. `user_id` is **never** part of request or response payloads; it is entirely managed server-side via the JWT.
+
 ---
 
 ## Authentication
 
-Single-user self-hosted server. No registration flow — the server operator creates their token.
+The server is multi-tenant. Each user has a `username` + `password`. There is **no public registration endpoint** — accounts are provisioned by the server operator via the CLI (see [User provisioning](#user-provisioning)). Clients log in with their credentials and receive a JWT to use for subsequent requests.
 
 ### `POST /auth/token`
 
-Exchange credentials for a session token.
+Exchange username + password for a session token.
 
 **Request:**
 ```json
 {
-  "secret": "the-server-configured-secret"
+  "username": "alice",
+  "password": "hunter2"
 }
 ```
 
@@ -42,9 +47,22 @@ Exchange credentials for a session token.
 }
 ```
 
-All subsequent requests include: `Authorization: Bearer <token>`
+**401 Unauthorized:** returned for both wrong password and unknown username. The server performs a dummy argon2 verify on the unknown-user path so response timing is constant — username enumeration via timing is not possible.
 
-**401 on any endpoint:** token is invalid or expired. Client must re-authenticate.
+All subsequent requests include: `Authorization: Bearer <token>`. Token lifetime is 30 days. A 401 on any protected endpoint means the token is invalid or expired; the client must prompt the user to re-authenticate.
+
+### User provisioning
+
+The `yata_backend` binary doubles as an admin CLI. The server operator runs (on the host):
+
+```sh
+yata_backend create-user alice        # prompts for password twice (min 8 chars)
+yata_backend list-users               # id, username, created_at
+yata_backend reset-password alice     # prompts for new password
+yata_backend delete-user alice        # cascades: removes all of alice's data
+```
+
+Passwords are hashed with Argon2id and stored in the `users` table. The JWT signing key is a separate server-side secret (`YATA_JWT_SECRET` env var) that is never exposed over the API.
 
 ---
 
