@@ -28,32 +28,38 @@ pub struct SyncGroup<T> {
 
 // GET /sync?since=ISO8601
 pub async fn sync(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<SyncQuery>,
 ) -> Result<Json<SyncResponse>, AppError> {
-    let upserted_items =
-        sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE updated_at > ?")
-            .bind(&query.since)
-            .fetch_all(&pool)
-            .await?;
+    let upserted_items = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND updated_at > ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&query.since)
+    .fetch_all(&pool)
+    .await?;
 
-    let upserted_repeating =
-        sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items WHERE updated_at > ?")
-            .bind(&query.since)
-            .fetch_all(&pool)
-            .await?;
+    let upserted_repeating = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ? AND updated_at > ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&query.since)
+    .fetch_all(&pool)
+    .await?;
 
     let deleted_items: Vec<(String,)> = sqlx::query_as(
-        "SELECT entity_id FROM deletion_log WHERE entity_type = 'todoItem' AND deleted_at > ?",
+        "SELECT entity_id FROM deletion_log WHERE user_id = ? AND entity_type = 'todoItem' AND deleted_at > ?",
     )
+    .bind(&auth.user_id)
     .bind(&query.since)
     .fetch_all(&pool)
     .await?;
 
     let deleted_repeating: Vec<(String,)> = sqlx::query_as(
-        "SELECT entity_id FROM deletion_log WHERE entity_type = 'repeatingItem' AND deleted_at > ?",
+        "SELECT entity_id FROM deletion_log WHERE user_id = ? AND entity_type = 'repeatingItem' AND deleted_at > ?",
     )
+    .bind(&auth.user_id)
     .bind(&query.since)
     .fetch_all(&pool)
     .await?;

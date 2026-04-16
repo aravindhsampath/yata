@@ -16,19 +16,21 @@ pub struct RepeatingResponse {
 
 // GET /repeating
 pub async fn list_repeating(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
 ) -> Result<Json<RepeatingResponse>, AppError> {
-    let items =
-        sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items ORDER BY sort_order ASC")
-            .fetch_all(&pool)
-            .await?;
+    let items = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ? ORDER BY sort_order ASC",
+    )
+    .bind(&auth.user_id)
+    .fetch_all(&pool)
+    .await?;
     Ok(Json(RepeatingResponse { items }))
 }
 
 // POST /repeating
 pub async fn create_repeating(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<CreateRepeatingRequest>,
 ) -> Result<(StatusCode, Json<RepeatingItem>), AppError> {
@@ -41,10 +43,11 @@ pub async fn create_repeating(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO repeating_items (id, title, frequency, scheduled_time, scheduled_day_of_week, scheduled_day_of_month, scheduled_month, sort_order, default_urgency, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO repeating_items (id, user_id, title, frequency, scheduled_time, scheduled_day_of_week, scheduled_day_of_month, scheduled_month, sort_order, default_urgency, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .bind(&body.id)
+    .bind(&auth.user_id)
     .bind(&body.title)
     .bind(body.frequency)
     .bind(&body.scheduled_time)
@@ -57,17 +60,20 @@ pub async fn create_repeating(
     .execute(&pool)
     .await?;
 
-    let item = sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items WHERE id = ?")
-        .bind(&body.id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&body.id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok((StatusCode::CREATED, Json(item)))
 }
 
 // PUT /repeating/:id
 pub async fn update_repeating(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
     Json(body): Json<UpdateRepeatingRequest>,
@@ -78,11 +84,14 @@ pub async fn update_repeating(
         ));
     }
 
-    let existing = sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let existing = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     if existing.updated_at > body.updated_at {
         let server_version =
@@ -93,7 +102,7 @@ pub async fn update_repeating(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "UPDATE repeating_items SET title = ?, frequency = ?, scheduled_time = ?, scheduled_day_of_week = ?, scheduled_day_of_month = ?, scheduled_month = ?, sort_order = ?, default_urgency = ?, updated_at = ? WHERE id = ?",
+        "UPDATE repeating_items SET title = ?, frequency = ?, scheduled_time = ?, scheduled_day_of_week = ?, scheduled_day_of_month = ?, scheduled_month = ?, sort_order = ?, default_urgency = ?, updated_at = ? WHERE user_id = ? AND id = ?",
     )
     .bind(&body.title)
     .bind(body.frequency)
@@ -104,25 +113,30 @@ pub async fn update_repeating(
     .bind(body.sort_order)
     .bind(body.default_urgency)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&id)
     .execute(&pool)
     .await?;
 
-    let item = sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(item))
 }
 
 // DELETE /repeating/:id — cascades: deletes undone linked TodoItems
 pub async fn delete_repeating(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let result = sqlx::query("DELETE FROM repeating_items WHERE id = ?")
+    let result = sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ?")
+        .bind(&auth.user_id)
         .bind(&id)
         .execute(&pool)
         .await?;
@@ -133,35 +147,38 @@ pub async fn delete_repeating(
 
     let now = Utc::now().to_rfc3339();
 
-    // Cascade: delete undone TodoItems linked to this repeating rule
-    // First, collect their IDs for the deletion log
-    let linked_ids: Vec<(String,)> =
-        sqlx::query_as("SELECT id FROM todo_items WHERE source_repeating_id = ? AND is_done = 0")
-            .bind(&id)
-            .fetch_all(&pool)
-            .await?;
+    // Cascade: delete undone TodoItems linked to this repeating rule (scoped to this user).
+    let linked_ids: Vec<(String,)> = sqlx::query_as(
+        "SELECT id FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND is_done = 0",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_all(&pool)
+    .await?;
 
-    // Delete the linked items
-    sqlx::query("DELETE FROM todo_items WHERE source_repeating_id = ? AND is_done = 0")
-        .bind(&id)
-        .execute(&pool)
-        .await?;
+    sqlx::query(
+        "DELETE FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND is_done = 0",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .execute(&pool)
+    .await?;
 
-    // Log deletions for sync
     for (item_id,) in &linked_ids {
         sqlx::query(
-            "INSERT INTO deletion_log (entity_type, entity_id, deleted_at) VALUES ('todoItem', ?, ?)",
+            "INSERT INTO deletion_log (user_id, entity_type, entity_id, deleted_at) VALUES (?, 'todoItem', ?, ?)",
         )
+        .bind(&auth.user_id)
         .bind(item_id)
         .bind(&now)
         .execute(&pool)
         .await?;
     }
 
-    // Log the repeating item deletion
     sqlx::query(
-        "INSERT INTO deletion_log (entity_type, entity_id, deleted_at) VALUES ('repeatingItem', ?, ?)",
+        "INSERT INTO deletion_log (user_id, entity_type, entity_id, deleted_at) VALUES (?, 'repeatingItem', ?, ?)",
     )
+    .bind(&auth.user_id)
     .bind(&id)
     .bind(&now)
     .execute(&pool)

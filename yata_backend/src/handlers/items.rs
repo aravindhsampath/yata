@@ -25,22 +25,24 @@ pub struct DoneItemsResponse {
 
 // GET /items?date=YYYY-MM-DD&priority=N
 pub async fn list_items(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<ItemsQuery>,
 ) -> Result<Json<ItemsResponse>, AppError> {
     let items = if let Some(priority) = query.priority {
         sqlx::query_as::<_, TodoItem>(
-            "SELECT * FROM todo_items WHERE scheduled_date = ? AND priority = ? ORDER BY sort_order ASC",
+            "SELECT * FROM todo_items WHERE user_id = ? AND scheduled_date = ? AND priority = ? ORDER BY sort_order ASC",
         )
+        .bind(&auth.user_id)
         .bind(&query.date)
         .bind(priority)
         .fetch_all(&pool)
         .await?
     } else {
         sqlx::query_as::<_, TodoItem>(
-            "SELECT * FROM todo_items WHERE scheduled_date = ? ORDER BY sort_order ASC",
+            "SELECT * FROM todo_items WHERE user_id = ? AND scheduled_date = ? ORDER BY sort_order ASC",
         )
+        .bind(&auth.user_id)
         .bind(&query.date)
         .fetch_all(&pool)
         .await?
@@ -50,20 +52,23 @@ pub async fn list_items(
 
 // GET /items/done?limit=25&offset=0
 pub async fn list_done_items(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<DoneQuery>,
 ) -> Result<Json<DoneItemsResponse>, AppError> {
     let limit = query.limit.unwrap_or(25);
     let offset = query.offset.unwrap_or(0);
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM todo_items WHERE is_done = 1")
-        .fetch_one(&pool)
-        .await?;
+    let total: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM todo_items WHERE user_id = ? AND is_done = 1")
+            .bind(&auth.user_id)
+            .fetch_one(&pool)
+            .await?;
 
     let items = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE is_done = 1 ORDER BY completed_at DESC LIMIT ? OFFSET ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND is_done = 1 ORDER BY completed_at DESC LIMIT ? OFFSET ?",
     )
+    .bind(&auth.user_id)
     .bind(limit)
     .bind(offset)
     .fetch_all(&pool)
@@ -77,7 +82,7 @@ pub async fn list_done_items(
 
 // POST /items
 pub async fn create_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<CreateItemRequest>,
 ) -> Result<(StatusCode, Json<TodoItem>), AppError> {
@@ -90,10 +95,11 @@ pub async fn create_item(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "INSERT INTO todo_items (id, title, priority, is_done, sort_order, reminder_date, created_at, completed_at, scheduled_date, source_repeating_id, source_repeating_rule_name, reschedule_count, updated_at)
-         VALUES (?, ?, ?, 0, ?, ?, ?, NULL, ?, ?, ?, 0, ?)",
+        "INSERT INTO todo_items (id, user_id, title, priority, is_done, sort_order, reminder_date, created_at, completed_at, scheduled_date, source_repeating_id, source_repeating_rule_name, reschedule_count, updated_at)
+         VALUES (?, ?, ?, ?, 0, ?, ?, ?, NULL, ?, ?, ?, 0, ?)",
     )
     .bind(&body.id)
+    .bind(&auth.user_id)
     .bind(&body.title)
     .bind(body.priority)
     .bind(body.sort_order)
@@ -106,17 +112,20 @@ pub async fn create_item(
     .execute(&pool)
     .await?;
 
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&body.id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&body.id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok((StatusCode::CREATED, Json(item)))
 }
 
 // PUT /items/:id
 pub async fn update_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
     Json(body): Json<UpdateItemRequest>,
@@ -127,11 +136,14 @@ pub async fn update_item(
         ));
     }
 
-    let existing = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let existing = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     // Conflict detection: if server's updated_at is newer than client's, reject
     if existing.updated_at > body.updated_at {
@@ -152,7 +164,7 @@ pub async fn update_item(
     };
 
     sqlx::query(
-        "UPDATE todo_items SET title = ?, priority = ?, is_done = ?, sort_order = ?, reminder_date = ?, scheduled_date = ?, reschedule_count = ?, completed_at = ?, updated_at = ? WHERE id = ?",
+        "UPDATE todo_items SET title = ?, priority = ?, is_done = ?, sort_order = ?, reminder_date = ?, scheduled_date = ?, reschedule_count = ?, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
     )
     .bind(&body.title)
     .bind(body.priority)
@@ -163,39 +175,45 @@ pub async fn update_item(
     .bind(body.reschedule_count)
     .bind(&completed_at)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&id)
     .execute(&pool)
     .await?;
 
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(item))
 }
 
 // DELETE /items/:id
 pub async fn delete_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
-    let result = sqlx::query("DELETE FROM todo_items WHERE id = ?")
+    let result = sqlx::query("DELETE FROM todo_items WHERE user_id = ? AND id = ?")
+        .bind(&auth.user_id)
         .bind(&id)
         .execute(&pool)
         .await?;
 
     if result.rows_affected() == 0 {
-        // Idempotent — 204 even if already deleted
+        // Idempotent — 204 even if already deleted or belongs to another user.
         return Ok(StatusCode::NO_CONTENT);
     }
 
     // Record in deletion log for sync
     let now = Utc::now().to_rfc3339();
     sqlx::query(
-        "INSERT INTO deletion_log (entity_type, entity_id, deleted_at) VALUES ('todoItem', ?, ?)",
+        "INSERT INTO deletion_log (user_id, entity_type, entity_id, deleted_at) VALUES (?, 'todoItem', ?, ?)",
     )
+    .bind(&auth.user_id)
     .bind(&id)
     .bind(&now)
     .execute(&pool)
@@ -206,25 +224,29 @@ pub async fn delete_item(
 
 // POST /items/reorder
 pub async fn reorder_items(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<ReorderRequest>,
 ) -> Result<Json<ItemsResponse>, AppError> {
     for (index, id) in body.ids.iter().enumerate() {
         let now = Utc::now().to_rfc3339();
-        sqlx::query("UPDATE todo_items SET sort_order = ?, updated_at = ? WHERE id = ? AND scheduled_date = ? AND priority = ?")
-            .bind(index as i64)
-            .bind(&now)
-            .bind(id)
-            .bind(&body.date)
-            .bind(body.priority)
-            .execute(&pool)
-            .await?;
+        sqlx::query(
+            "UPDATE todo_items SET sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ? AND scheduled_date = ? AND priority = ?",
+        )
+        .bind(index as i64)
+        .bind(&now)
+        .bind(&auth.user_id)
+        .bind(id)
+        .bind(&body.date)
+        .bind(body.priority)
+        .execute(&pool)
+        .await?;
     }
 
     let items = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE scheduled_date = ? AND priority = ? ORDER BY sort_order ASC",
+        "SELECT * FROM todo_items WHERE user_id = ? AND scheduled_date = ? AND priority = ? ORDER BY sort_order ASC",
     )
+    .bind(&auth.user_id)
     .bind(&body.date)
     .bind(body.priority)
     .fetch_all(&pool)
@@ -235,24 +257,28 @@ pub async fn reorder_items(
 
 // POST /items/:id/move
 pub async fn move_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
     Json(body): Json<MoveRequest>,
 ) -> Result<Json<TodoItem>, AppError> {
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let now = Utc::now().to_rfc3339();
 
     // Shift existing items in the target priority down to make room
     sqlx::query(
-        "UPDATE todo_items SET sort_order = sort_order + 1, updated_at = ? WHERE scheduled_date = ? AND priority = ? AND sort_order >= ? AND id != ?",
+        "UPDATE todo_items SET sort_order = sort_order + 1, updated_at = ? WHERE user_id = ? AND scheduled_date = ? AND priority = ? AND sort_order >= ? AND id != ?",
     )
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&item.scheduled_date)
     .bind(body.to_priority)
     .bind(body.at_index)
@@ -261,35 +287,42 @@ pub async fn move_item(
     .await?;
 
     // Move the item
-    sqlx::query("UPDATE todo_items SET priority = ?, sort_order = ?, updated_at = ? WHERE id = ?")
-        .bind(body.to_priority)
-        .bind(body.at_index)
-        .bind(&now)
-        .bind(&id)
-        .execute(&pool)
-        .await?;
+    sqlx::query(
+        "UPDATE todo_items SET priority = ?, sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+    )
+    .bind(body.to_priority)
+    .bind(body.at_index)
+    .bind(&now)
+    .bind(&auth.user_id)
+    .bind(&id)
+    .execute(&pool)
+    .await?;
 
-    let updated = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let updated = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(updated))
 }
 
 // POST /items/:id/done
 pub async fn mark_done(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
 ) -> Result<Json<TodoItem>, AppError> {
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "UPDATE todo_items SET is_done = 1, completed_at = ?, updated_at = ? WHERE id = ?",
+        "UPDATE todo_items SET is_done = 1, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
     )
     .bind(&now)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&id)
     .execute(&pool)
     .await?;
@@ -298,17 +331,20 @@ pub async fn mark_done(
         return Err(AppError::NotFound);
     }
 
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(item))
 }
 
 // POST /items/:id/undone
 pub async fn mark_undone(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
     Json(body): Json<UndoneRequest>,
@@ -316,10 +352,11 @@ pub async fn mark_undone(
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "UPDATE todo_items SET is_done = 0, completed_at = NULL, scheduled_date = ?, updated_at = ? WHERE id = ?",
+        "UPDATE todo_items SET is_done = 0, completed_at = NULL, scheduled_date = ?, updated_at = ? WHERE user_id = ? AND id = ?",
     )
     .bind(&body.scheduled_date)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&id)
     .execute(&pool)
     .await?;
@@ -328,26 +365,32 @@ pub async fn mark_undone(
         return Err(AppError::NotFound);
     }
 
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(item))
 }
 
 // POST /items/:id/reschedule
 pub async fn reschedule_item(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
     Json(body): Json<RescheduleRequest>,
 ) -> Result<Json<TodoItem>, AppError> {
-    let existing = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_optional(&pool)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let existing = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let now = Utc::now().to_rfc3339();
     let new_count = if body.reset_count {
@@ -357,19 +400,23 @@ pub async fn reschedule_item(
     };
 
     sqlx::query(
-        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = ?, updated_at = ? WHERE id = ?",
+        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = ?, updated_at = ? WHERE user_id = ? AND id = ?",
     )
     .bind(&body.to_date)
     .bind(new_count)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&id)
     .execute(&pool)
     .await?;
 
-    let item = sqlx::query_as::<_, TodoItem>("SELECT * FROM todo_items WHERE id = ?")
-        .bind(&id)
-        .fetch_one(&pool)
-        .await?;
+    let item = sqlx::query_as::<_, TodoItem>(
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+    )
+    .bind(&auth.user_id)
+    .bind(&id)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(item))
 }

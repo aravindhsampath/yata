@@ -30,7 +30,7 @@ pub struct DoneCountResponse {
 
 // GET /stats/counts?dates=2026-04-05,2026-04-06
 pub async fn counts(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<CountsQuery>,
 ) -> Result<Json<CountsResponse>, AppError> {
@@ -40,8 +40,9 @@ pub async fn counts(
     for date in dates {
         let date = date.trim();
         let rows: Vec<(i64, i64)> = sqlx::query_as(
-            "SELECT priority, COUNT(*) FROM todo_items WHERE scheduled_date = ? AND is_done = 0 GROUP BY priority",
+            "SELECT priority, COUNT(*) FROM todo_items WHERE user_id = ? AND scheduled_date = ? AND is_done = 0 GROUP BY priority",
         )
+        .bind(&auth.user_id)
         .bind(date)
         .fetch_all(&pool)
         .await?;
@@ -64,15 +65,17 @@ pub async fn counts(
 
 // GET /stats/done-count?date=2026-04-05
 pub async fn done_count(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Query(query): Query<DoneCountQuery>,
 ) -> Result<Json<DoneCountResponse>, AppError> {
-    let (count,): (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM todo_items WHERE scheduled_date = ? AND is_done = 1")
-            .bind(&query.date)
-            .fetch_one(&pool)
-            .await?;
+    let (count,): (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM todo_items WHERE user_id = ? AND scheduled_date = ? AND is_done = 1",
+    )
+    .bind(&auth.user_id)
+    .bind(&query.date)
+    .fetch_one(&pool)
+    .await?;
 
     Ok(Json(DoneCountResponse { count }))
 }

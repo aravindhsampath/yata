@@ -31,17 +31,18 @@ pub struct MaterializeResponse {
 
 // POST /operations/rollover
 pub async fn rollover(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<RolloverRequest>,
 ) -> Result<Json<RolloverResponse>, AppError> {
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = reschedule_count + 1, updated_at = ? WHERE scheduled_date < ? AND is_done = 0",
+        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = reschedule_count + 1, updated_at = ? WHERE user_id = ? AND scheduled_date < ? AND is_done = 0",
     )
     .bind(&body.to_date)
     .bind(&now)
+    .bind(&auth.user_id)
     .bind(&body.to_date)
     .execute(&pool)
     .await?;
@@ -53,7 +54,7 @@ pub async fn rollover(
 
 // POST /operations/materialize
 pub async fn materialize(
-    _auth: AuthUser,
+    auth: AuthUser,
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<MaterializeRequest>,
 ) -> Result<Json<MaterializeResponse>, AppError> {
@@ -62,9 +63,12 @@ pub async fn materialize(
     let end = NaiveDate::parse_from_str(&body.end_date, "%Y-%m-%d")
         .map_err(|_| AppError::ValidationError("invalid end_date format".to_string()))?;
 
-    let rules = sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items")
-        .fetch_all(&pool)
-        .await?;
+    let rules = sqlx::query_as::<_, RepeatingItem>(
+        "SELECT * FROM repeating_items WHERE user_id = ?",
+    )
+    .bind(&auth.user_id)
+    .fetch_all(&pool)
+    .await?;
 
     let mut created_count: i64 = 0;
 
@@ -76,8 +80,9 @@ pub async fn materialize(
 
             // Dedup: skip if an item already exists for this rule + date
             let (count,): (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM todo_items WHERE source_repeating_id = ? AND scheduled_date = ?",
+                "SELECT COUNT(*) FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND scheduled_date = ?",
             )
+            .bind(&auth.user_id)
             .bind(&rule.id)
             .bind(&date_str)
             .fetch_one(&pool)
@@ -91,10 +96,11 @@ pub async fn materialize(
             let now = Utc::now().to_rfc3339();
 
             sqlx::query(
-                "INSERT INTO todo_items (id, title, priority, is_done, sort_order, reminder_date, created_at, completed_at, scheduled_date, source_repeating_id, source_repeating_rule_name, reschedule_count, updated_at)
-                 VALUES (?, ?, ?, 0, 0, NULL, ?, NULL, ?, ?, ?, 0, ?)",
+                "INSERT INTO todo_items (id, user_id, title, priority, is_done, sort_order, reminder_date, created_at, completed_at, scheduled_date, source_repeating_id, source_repeating_rule_name, reschedule_count, updated_at)
+                 VALUES (?, ?, ?, ?, 0, 0, NULL, ?, NULL, ?, ?, ?, 0, ?)",
             )
             .bind(&item_id)
+            .bind(&auth.user_id)
             .bind(&rule.title)
             .bind(rule.default_urgency)
             .bind(&now)
