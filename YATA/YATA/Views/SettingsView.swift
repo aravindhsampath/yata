@@ -319,7 +319,7 @@ struct SettingsView: View {
 
             // Push all local RepeatingItems
             let localRepeatingRepo = LocalRepeatingRepository(modelContainer: modelContext.container)
-            let repeatingItems = try await localRepeatingRepo.fetchItems()
+            let repeatingItems = try localRepeatingRepo.fetchItems()
             for item in repeatingItems {
                 let dateFormatter = Self.dateFormatter
                 let body = CreateRepeatingRequest(

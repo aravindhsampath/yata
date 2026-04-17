@@ -37,7 +37,7 @@ final class RepositoryProvider {
             let engine = SyncEngine(
                 apiClient: apiClient,
                 mutationLogger: logger,
-                modelContext: ModelContext(container)
+                modelContainer: container
             )
             let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, logger: logger)
             self.todoRepository = caching
@@ -73,7 +73,7 @@ final class RepositoryProvider {
         let engine = SyncEngine(
             apiClient: apiClient,
             mutationLogger: logger,
-            modelContext: ModelContext(container)
+            modelContainer: container
         )
         let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, logger: logger)
         todoRepository = caching

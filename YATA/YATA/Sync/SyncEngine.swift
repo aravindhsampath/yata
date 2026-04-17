@@ -37,7 +37,12 @@ private struct MutationSnapshot {
 actor SyncEngine {
     private let apiClient: APIClient
     private let mutationLogger: MutationLogger
-    private let modelContext: ModelContext
+    /// ModelContainer is Sendable; ModelContext is not. We store the container
+    /// on the actor and materialize a fresh context inside each MainActor.run
+    /// block that touches SwiftData. SwiftData's internal concurrency model is
+    /// built for short-lived, main-actor-bound contexts, so this is both the
+    /// compiler-sanctioned path and the recommended pattern.
+    private let modelContainer: ModelContainer
 
     // MARK: - Backoff state
 
@@ -54,10 +59,10 @@ actor SyncEngine {
         return decoder
     }()
 
-    init(apiClient: APIClient, mutationLogger: MutationLogger, modelContext: ModelContext) {
+    init(apiClient: APIClient, mutationLogger: MutationLogger, modelContainer: ModelContainer) {
         self.apiClient = apiClient
         self.mutationLogger = mutationLogger
-        self.modelContext = modelContext
+        self.modelContainer = modelContainer
     }
 
     // MARK: - Public API
@@ -119,14 +124,16 @@ actor SyncEngine {
                 default:
                     // Increment retry count and record error
                     let mutationID = snapshot.id
+                    let container = modelContainer
                     try await MainActor.run {
+                        let context = ModelContext(container)
                         let descriptor = FetchDescriptor<PendingMutation>(
                             predicate: #Predicate<PendingMutation> { $0.id == mutationID }
                         )
-                        if let mutation = try modelContext.fetch(descriptor).first {
+                        if let mutation = try context.fetch(descriptor).first {
                             mutation.retryCount += 1
                             mutation.lastError = error.localizedDescription
-                            try modelContext.save()
+                            try context.save()
                         }
                     }
                     // Track consecutive failures for backoff
@@ -162,7 +169,10 @@ actor SyncEngine {
         }
 
         // 3-8. Apply changes on MainActor
+        let container = modelContainer
         try await MainActor.run {
+            let context = ModelContext(container)
+
             // 3. Collect entity IDs with pending mutations
             let pendingMutations = try mutationLogger.pendingMutations()
             let pendingEntityIDs = Set(pendingMutations.map(\.entityID))
@@ -175,10 +185,10 @@ actor SyncEngine {
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     applyServerTodoItem(apiItem, to: existing)
                 } else {
-                    modelContext.insert(apiItem.toTodoItem())
+                    context.insert(apiItem.toTodoItem())
                 }
             }
 
@@ -190,10 +200,10 @@ actor SyncEngine {
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     applyServerRepeatingItem(apiItem, to: existing)
                 } else {
-                    modelContext.insert(apiItem.toRepeatingItem())
+                    context.insert(apiItem.toRepeatingItem())
                 }
             }
 
@@ -203,15 +213,15 @@ actor SyncEngine {
                 let todoDescriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let item = try modelContext.fetch(todoDescriptor).first {
-                    modelContext.delete(item)
+                if let item = try context.fetch(todoDescriptor).first {
+                    context.delete(item)
                 }
                 // Also delete any pending mutations for this entity
                 let mutationDescriptor = FetchDescriptor<PendingMutation>(
                     predicate: #Predicate<PendingMutation> { $0.entityID == targetID }
                 )
-                for mutation in try modelContext.fetch(mutationDescriptor) {
-                    modelContext.delete(mutation)
+                for mutation in try context.fetch(mutationDescriptor) {
+                    context.delete(mutation)
                 }
             }
 
@@ -221,19 +231,19 @@ actor SyncEngine {
                 let repeatingDescriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let item = try modelContext.fetch(repeatingDescriptor).first {
-                    modelContext.delete(item)
+                if let item = try context.fetch(repeatingDescriptor).first {
+                    context.delete(item)
                 }
                 let mutationDescriptor = FetchDescriptor<PendingMutation>(
                     predicate: #Predicate<PendingMutation> { $0.entityID == targetID }
                 )
-                for mutation in try modelContext.fetch(mutationDescriptor) {
-                    modelContext.delete(mutation)
+                for mutation in try context.fetch(mutationDescriptor) {
+                    context.delete(mutation)
                 }
             }
 
             // 8. Save
-            try modelContext.save()
+            try context.save()
         }
 
         // 9. Store serverTime
@@ -286,19 +296,21 @@ actor SyncEngine {
         // Reorder: returns multiple items
         if snapshot.mutationType == "reorder" {
             let response: ItemsResponse = try await apiClient.request(endpoint)
+            let container = modelContainer
             try await MainActor.run {
+                let context = ModelContext(container)
                 for apiItem in response.items {
                     let targetID = apiItem.id
                     let descriptor = FetchDescriptor<TodoItem>(
                         predicate: #Predicate<TodoItem> { $0.id == targetID }
                     )
-                    if let existing = try modelContext.fetch(descriptor).first {
+                    if let existing = try context.fetch(descriptor).first {
                         existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
                     } else {
-                        modelContext.insert(apiItem.toTodoItem())
+                        context.insert(apiItem.toTodoItem())
                     }
                 }
-                try modelContext.save()
+                try context.save()
             }
             try await deleteMutationByID(snapshot.id)
             return
@@ -307,27 +319,31 @@ actor SyncEngine {
         // Standard single-entity responses
         if snapshot.entityType == "todoItem" {
             let apiItem: APITodoItem = try await apiClient.request(endpoint)
+            let container = modelContainer
             try await MainActor.run {
+                let context = ModelContext(container)
                 let targetID = snapshot.entityID
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
                 }
-                try modelContext.save()
+                try context.save()
             }
         } else if snapshot.entityType == "repeatingItem" {
             let apiItem: APIRepeatingItem = try await apiClient.request(endpoint)
+            let container = modelContainer
             try await MainActor.run {
+                let context = ModelContext(container)
                 let targetID = snapshot.entityID
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
                 }
-                try modelContext.save()
+                try context.save()
             }
         }
 
@@ -464,12 +480,15 @@ actor SyncEngine {
     // MARK: - Private: Helpers
 
     private func deleteMutationByID(_ mutationID: UUID) async throws {
+        let container = modelContainer
         try await MainActor.run {
+            let context = ModelContext(container)
             let descriptor = FetchDescriptor<PendingMutation>(
                 predicate: #Predicate<PendingMutation> { $0.id == mutationID }
             )
-            if let mutation = try modelContext.fetch(descriptor).first {
-                try mutationLogger.deleteMutation(mutation)
+            if let mutation = try context.fetch(descriptor).first {
+                context.delete(mutation)
+                try context.save()
             }
         }
     }
@@ -524,26 +543,30 @@ extension SyncEngine {
 
         if snapshot.entityType == "todoItem" {
             let apiItem = try payloadDecoder.decode(APITodoItem.self, from: serverVersionData)
+            let container = modelContainer
             try await MainActor.run {
+                let context = ModelContext(container)
                 let targetID = snapshot.entityID
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     applyServerTodoItem(apiItem, to: existing)
-                    try modelContext.save()
+                    try context.save()
                 }
             }
         } else if snapshot.entityType == "repeatingItem" {
             let apiItem = try payloadDecoder.decode(APIRepeatingItem.self, from: serverVersionData)
+            let container = modelContainer
             try await MainActor.run {
+                let context = ModelContext(container)
                 let targetID = snapshot.entityID
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let existing = try modelContext.fetch(descriptor).first {
+                if let existing = try context.fetch(descriptor).first {
                     applyServerRepeatingItem(apiItem, to: existing)
-                    try modelContext.save()
+                    try context.save()
                 }
             }
         }
@@ -552,27 +575,28 @@ extension SyncEngine {
 
     /// Called from push() error handling when a 404 is received
     fileprivate func handleNotFound(snapshot: MutationSnapshot) async throws {
+        let container = modelContainer
         try await MainActor.run {
+            let context = ModelContext(container)
             let targetID = snapshot.entityID
             if snapshot.entityType == "todoItem" {
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let item = try modelContext.fetch(descriptor).first {
-                    modelContext.delete(item)
-                    try modelContext.save()
+                if let item = try context.fetch(descriptor).first {
+                    context.delete(item)
+                    try context.save()
                 }
             } else if snapshot.entityType == "repeatingItem" {
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let item = try modelContext.fetch(descriptor).first {
-                    modelContext.delete(item)
-                    try modelContext.save()
+                if let item = try context.fetch(descriptor).first {
+                    context.delete(item)
+                    try context.save()
                 }
             }
         }
         try await deleteMutationByID(snapshot.id)
     }
 }
-
