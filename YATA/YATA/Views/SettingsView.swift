@@ -84,10 +84,10 @@ struct SettingsView: View {
     // MARK: - Sections
 
     private var serverSection: some View {
-        Section("Server") {
+        Section("Storage") {
             Picker("Mode", selection: $serverMode) {
                 Text("Local").tag("local")
-                Text("Client").tag("client")
+                Text("Server").tag("client")
             }
             .pickerStyle(.segmented)
             .onChange(of: serverMode) { oldValue, newValue in
@@ -99,6 +99,7 @@ struct SettingsView: View {
                         serverURLText = ""
                         usernameText = ""
                         passwordText = ""
+                        authErrorMessage = nil
                     }
                 }
             }
@@ -113,6 +114,8 @@ struct SettingsView: View {
     private var clientConfigFields: some View {
         switch connectionState {
         case .disconnected:
+            // All three credentials on one form. The Connect button validates
+            // everything in one shot (URL reachability + authentication).
             TextField("Server URL", text: $serverURLText)
                 .textContentType(.URL)
                 .keyboardType(.URL)
@@ -120,86 +123,70 @@ struct SettingsView: View {
                 .disableAutocorrection(true)
                 .focused($focusedField, equals: .serverURL)
                 .submitLabel(.next)
-                .onSubmit {
-                    checkHealth()
-                    if healthStatus != .unreachable { focusedField = .username }
-                }
+                .onSubmit { focusedField = .username }
 
-            healthStatusRow
+            TextField("Username", text: $usernameText)
+                .textContentType(.username)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .focused($focusedField, equals: .username)
+                .submitLabel(.next)
+                .onSubmit { focusedField = .password }
 
-            if healthStatus == .reachable {
-                TextField("Username", text: $usernameText)
-                    .textContentType(.username)
-                    .textInputAutocapitalization(.never)
-                    .disableAutocorrection(true)
-                    .focused($focusedField, equals: .username)
-                    .submitLabel(.next)
-                    .onSubmit { focusedField = .password }
-
-                HStack {
-                    Group {
-                        if isPasswordVisible {
-                            TextField("Password", text: $passwordText)
-                                .textContentType(.password)
-                                .textInputAutocapitalization(.never)
-                                .disableAutocorrection(true)
-                        } else {
-                            SecureField("Password", text: $passwordText)
-                                .textContentType(.password)
-                        }
+            HStack {
+                Group {
+                    if isPasswordVisible {
+                        TextField("Password", text: $passwordText)
+                            .textContentType(.password)
+                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                    } else {
+                        SecureField("Password", text: $passwordText)
+                            .textContentType(.password)
                     }
-                    .focused($focusedField, equals: .password)
-                    .submitLabel(.go)
-                    .onSubmit { authenticate() }
-
-                    Button {
-                        isPasswordVisible.toggle()
-                    } label: {
-                        Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
                 }
+                .focused($focusedField, equals: .password)
+                .submitLabel(.go)
+                .onSubmit { if canConnect { authenticate() } }
 
-                Button("Authenticate") { authenticate() }
-                    .disabled(usernameText.isEmpty || passwordText.isEmpty)
-                    .accessibilityHint("Signs in with the username and password above.")
-
-                if let authErrorMessage {
-                    Text(authErrorMessage)
-                        .font(.footnote)
-                        .foregroundStyle(.red)
+                Button {
+                    isPasswordVisible.toggle()
+                } label: {
+                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                        .foregroundStyle(.secondary)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
+            }
+
+            Button("Connect") { authenticate() }
+                .disabled(!canConnect)
+                .accessibilityHint("Verifies the URL and signs in with the username and password above.")
+
+            if let authErrorMessage {
+                Text(authErrorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
             }
 
         case .authenticating:
-            ProgressView("Authenticating...")
+            HStack(spacing: 12) {
+                ProgressView()
+                Text("Connecting…")
+            }
 
         case .connected:
             connectedFields
         }
     }
 
-    private var healthStatusRow: some View {
-        HStack {
-            Text("Status")
-            Spacer()
-            switch healthStatus {
-            case .idle:
-                Text("Enter URL above")
-                    .foregroundStyle(.secondary)
-            case .checking:
-                ProgressView()
-                    .controlSize(.small)
-            case .reachable:
-                Label("Reachable", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            case .unreachable:
-                Label("Unreachable", systemImage: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-            }
-        }
+    /// Cheap pre-flight check for the Connect button — the server handles the
+    /// real validation. We only want to gray out the button until the user has
+    /// typed something into every field.
+    private var canConnect: Bool {
+        !serverURLText.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !usernameText.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !passwordText.isEmpty
     }
 
     @ViewBuilder
@@ -297,37 +284,36 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func checkHealth() {
-        let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = URL(string: trimmed), url.scheme != nil else {
-            healthStatus = .unreachable
-            return
-        }
-        healthStatus = .checking
-        Task {
-            let ok = await APIClient.checkHealth(serverURL: url)
-            healthStatus = ok ? .reachable : .unreachable
-        }
-    }
-
     private func authenticate() {
         let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let serverURL = URL(string: trimmed) else {
-            authErrorMessage = "Invalid server URL."
+        guard let serverURL = URL(string: trimmed), let scheme = serverURL.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            authErrorMessage = "Enter a full URL starting with http:// or https://"
+            focusedField = .serverURL
             return
         }
         authErrorMessage = nil
         connectionState = .authenticating
 
-        let username = usernameText
+        let username = usernameText.trimmingCharacters(in: .whitespaces)
         let password = passwordText
         Task {
+            // 1. Health check — distinguishes "server unreachable" from "bad credentials".
+            let reachable = await APIClient.checkHealth(serverURL: serverURL)
+            guard reachable else {
+                authErrorMessage = "Can't reach \(serverURL.host ?? "server"). Check the URL and your connection."
+                connectionState = .disconnected
+                healthStatus = .unreachable
+                focusedField = .serverURL
+                return
+            }
+
+            // 2. Authenticate.
             do {
                 let token = try await APIClient.authenticate(serverURL: serverURL, username: username, password: password)
                 repositoryProvider.switchToClient(serverURL: serverURL, username: username, token: token)
                 await performInitialSync(serverURL: serverURL, token: token)
             } catch APIError.unauthorized {
-                // Expected failure: wrong credentials. Inline message, keep focus.
                 authErrorMessage = "Incorrect username or password."
                 passwordText = ""
                 connectionState = .disconnected
