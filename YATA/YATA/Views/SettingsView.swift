@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 struct SettingsView: View {
     @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
@@ -53,7 +54,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { focusedField = nil }
+                    Button("Done") { dismissKeyboard() }
                 }
             }
             .overlay {
@@ -291,6 +292,17 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
+    /// Force-resign the first responder via UIKit. We also clear @FocusState
+    /// because some iOS versions require both signals for the chrome (toolbar,
+    /// accessory views) to tear down cleanly.
+    private func dismissKeyboard() {
+        focusedField = nil
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil, from: nil, for: nil
+        )
+    }
+
     private func authenticate() {
         let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let serverURL = URL(string: trimmed), let scheme = serverURL.scheme?.lowercased(),
@@ -300,7 +312,7 @@ struct SettingsView: View {
             return
         }
         authErrorMessage = nil
-        focusedField = nil   // tuck the keyboard away while we work
+        dismissKeyboard()    // tuck the keyboard away while we work
         connectionState = .authenticating
 
         let username = usernameText.trimmingCharacters(in: .whitespaces)
