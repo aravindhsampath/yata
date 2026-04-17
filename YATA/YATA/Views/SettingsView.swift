@@ -54,7 +54,23 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { dismissKeyboard() }
+                    Button("Done") {
+                        print("[YATA kbd] Done toolbar button tapped")
+                        dismissKeyboard()
+                    }
+                }
+            }
+            .onChange(of: connectionState) { old, new in
+                print("[YATA kbd] connectionState changed: \(old) → \(new)")
+                // Any transition out of .disconnected means the credential
+                // fields are gone — aggressively clear any orphaned keyboard.
+                if new != .disconnected {
+                    dismissKeyboard()
+                    // Also schedule one more tick later, in case the view
+                    // rebuild hasn't propagated to the responder chain yet.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        dismissKeyboard()
+                    }
                 }
             }
             .overlay {
@@ -292,18 +308,33 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    /// Force-resign the first responder via UIKit. We also clear @FocusState
-    /// because some iOS versions require both signals for the chrome (toolbar,
-    /// accessory views) to tear down cleanly.
+    /// Bulletproof keyboard dismissal. On iOS 26 we've observed that just
+    /// clearing @FocusState or sending resignFirstResponder to a nil target
+    /// doesn't always tear down the keyboard — there's an orphan state where
+    /// the TextField has been torn down from the view hierarchy but the
+    /// keyboard remains. Calling `endEditing(true)` on each scene window
+    /// explicitly ends editing, including for orphaned/resign-refused
+    /// responders. This is UIKit's guaranteed path.
     private func dismissKeyboard() {
         focusedField = nil
-        UIApplication.shared.sendAction(
+        let sent = UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder),
             to: nil, from: nil, for: nil
         )
+        var endedCount = 0
+        var windowCount = 0
+        for scene in UIApplication.shared.connectedScenes {
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            for window in windowScene.windows {
+                windowCount += 1
+                if window.endEditing(true) { endedCount += 1 }
+            }
+        }
+        print("[YATA kbd] dismissKeyboard sendAction=\(sent) windows=\(windowCount) endedEditing=\(endedCount)")
     }
 
     private func authenticate() {
+        print("[YATA kbd] authenticate() tapped — state=\(connectionState) focus=\(String(describing: focusedField))")
         let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let serverURL = URL(string: trimmed), let scheme = serverURL.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
@@ -314,6 +345,7 @@ struct SettingsView: View {
         authErrorMessage = nil
         dismissKeyboard()    // tuck the keyboard away while we work
         connectionState = .authenticating
+        print("[YATA kbd] state → .authenticating")
 
         let username = usernameText.trimmingCharacters(in: .whitespaces)
         let password = passwordText
@@ -331,8 +363,11 @@ struct SettingsView: View {
             // 2. Authenticate.
             do {
                 let token = try await APIClient.authenticate(serverURL: serverURL, username: username, password: password)
+                print("[YATA kbd] auth OK — switching to client, running initial sync")
                 repositoryProvider.switchToClient(serverURL: serverURL, username: username, token: token)
                 await performInitialSync(serverURL: serverURL, token: token)
+                print("[YATA kbd] initial sync complete — state=\(connectionState)")
+                dismissKeyboard()    // belt-and-suspenders post-success
             } catch APIError.unauthorized {
                 authErrorMessage = "Incorrect username or password."
                 passwordText = ""
