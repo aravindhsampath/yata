@@ -53,6 +53,12 @@ actor SyncEngine {
 
     private var isSyncHalted: Bool { consecutiveFailures >= maxConsecutiveFailures }
 
+    /// Timestamp of the last fullSync attempt (start, not completion). Used by
+    /// `syncIfStale(minInterval:)` to coalesce the three auto-fire triggers
+    /// (scene-active, network-reconnect, BGAppRefresh) that can all fire
+    /// within seconds of launch.
+    private var lastSyncAttemptAt: Date?
+
     private let payloadDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -250,7 +256,19 @@ actor SyncEngine {
         UserDefaults.standard.set(response.serverTime, forKey: "yata_lastSyncTimestamp")
     }
 
+    /// Call `fullSync()` only if no attempt has started in the last
+    /// `minInterval` seconds. Use this for auto-fire triggers (scene-active,
+    /// network-reconnect, BGAppRefresh). User-initiated syncs should call
+    /// `fullSync()` directly so "Sync Now" never feels ignored.
+    func syncIfStale(minInterval: TimeInterval = 30) async throws {
+        if let last = lastSyncAttemptAt, Date.now.timeIntervalSince(last) < minInterval {
+            return
+        }
+        try await fullSync()
+    }
+
     func fullSync() async throws {
+        lastSyncAttemptAt = .now
         do {
             try await push()
         } catch let error as SyncError {

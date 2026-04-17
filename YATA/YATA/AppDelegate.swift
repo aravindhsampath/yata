@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         scheduleBackgroundSync()
 
         let syncTask = Task { @MainActor in
-            try await repositoryProvider?.syncEngine?.fullSync()
+            try await repositoryProvider?.syncEngine?.syncIfStale()
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
         }
 

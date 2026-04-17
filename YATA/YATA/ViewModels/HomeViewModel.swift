@@ -40,6 +40,10 @@ final class HomeViewModel {
     var draggingItemID: UUID?
     var dropTarget: DropTarget?
 
+    // Debounce key for NotificationScheduler.syncAllReminders — skip the
+    // full-sweep IPC when the set of (id, reminderDate) pairs is unchanged.
+    private var lastReminderSyncKey: Int = 0
+
     struct DropTarget: Equatable {
         let priority: Priority
         let index: Int
@@ -74,15 +78,35 @@ final class HomeViewModel {
         isLoading = true
         defer { isLoading = false }
         do {
-            highItems = try await repository.fetchItems(for: selectedDate, priority: .high)
-            mediumItems = try await repository.fetchItems(for: selectedDate, priority: .medium)
-            lowItems = try await repository.fetchItems(for: selectedDate, priority: .low)
-            doneItems = try await repository.fetchDoneItems(limit: doneListLimit)
-            todayDoneCount = try await repository.countDoneItems(for: selectedDate)
-            weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
-            // Sync notifications on load
-            let allActiveItems = (highItems + mediumItems + lowItems)
-            await NotificationScheduler.syncAllReminders(items: allActiveItems)
+            // Six independent fetches — issue them concurrently.
+            async let high = repository.fetchItems(for: selectedDate, priority: .high)
+            async let medium = repository.fetchItems(for: selectedDate, priority: .medium)
+            async let low = repository.fetchItems(for: selectedDate, priority: .low)
+            async let done = repository.fetchDoneItems(limit: doneListLimit)
+            async let todayDone = repository.countDoneItems(for: selectedDate)
+            async let weekCounts = repository.fetchTaskCountsByPriority(for: weekDates)
+
+            highItems = try await high
+            mediumItems = try await medium
+            lowItems = try await low
+            doneItems = try await done
+            todayDoneCount = try await todayDone
+            weekTaskCounts = try await weekCounts
+
+            // Sync notifications only when the reminder set actually changed —
+            // syncAllReminders does IPC to notificationd, too expensive to run
+            // on every refresh.
+            let allActiveItems = highItems + mediumItems + lowItems
+            var hasher = Hasher()
+            for item in allActiveItems {
+                hasher.combine(item.id)
+                hasher.combine(item.reminderDate)
+            }
+            let reminderKey = hasher.finalize()
+            if reminderKey != lastReminderSyncKey {
+                lastReminderSyncKey = reminderKey
+                await NotificationScheduler.syncAllReminders(items: allActiveItems)
+            }
 
             // Set badge to overdue reminder count
             let now = Date.now

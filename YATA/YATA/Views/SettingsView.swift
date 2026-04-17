@@ -11,12 +11,17 @@ struct SettingsView: View {
     @State private var serverURLText = ""
     @State private var usernameText = ""
     @State private var passwordText = ""
+    @State private var isPasswordVisible = false
     @State private var healthStatus: HealthCheckStatus = .idle
     @State private var connectionState: ConnectionState = .disconnected
     @State private var isSyncing = false
+    @State private var authErrorMessage: String?
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var syncStatusValue: SyncStatus = .ok
+    @FocusState private var focusedField: CredentialField?
+
+    private enum CredentialField: Hashable { case serverURL, username, password }
 
     private var selectedPreference: Binding<ColorSchemePreference> {
         Binding(
@@ -110,24 +115,62 @@ struct SettingsView: View {
         case .disconnected:
             TextField("Server URL", text: $serverURLText)
                 .textContentType(.URL)
-                .autocapitalization(.none)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
                 .disableAutocorrection(true)
-                .onSubmit { checkHealth() }
+                .focused($focusedField, equals: .serverURL)
+                .submitLabel(.next)
+                .onSubmit {
+                    checkHealth()
+                    if healthStatus != .unreachable { focusedField = .username }
+                }
 
             healthStatusRow
 
             if healthStatus == .reachable {
                 TextField("Username", text: $usernameText)
                     .textContentType(.username)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .disableAutocorrection(true)
+                    .focused($focusedField, equals: .username)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField = .password }
 
-                SecureField("Password", text: $passwordText)
-                    .textContentType(.password)
+                HStack {
+                    Group {
+                        if isPasswordVisible {
+                            TextField("Password", text: $passwordText)
+                                .textContentType(.password)
+                                .textInputAutocapitalization(.never)
+                                .disableAutocorrection(true)
+                        } else {
+                            SecureField("Password", text: $passwordText)
+                                .textContentType(.password)
+                        }
+                    }
+                    .focused($focusedField, equals: .password)
+                    .submitLabel(.go)
                     .onSubmit { authenticate() }
+
+                    Button {
+                        isPasswordVisible.toggle()
+                    } label: {
+                        Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
+                }
 
                 Button("Authenticate") { authenticate() }
                     .disabled(usernameText.isEmpty || passwordText.isEmpty)
+                    .accessibilityHint("Signs in with the username and password above.")
+
+                if let authErrorMessage {
+                    Text(authErrorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
             }
 
         case .authenticating:
@@ -270,9 +313,10 @@ struct SettingsView: View {
     private func authenticate() {
         let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let serverURL = URL(string: trimmed) else {
-            showErrorMessage("Invalid server URL.")
+            authErrorMessage = "Invalid server URL."
             return
         }
+        authErrorMessage = nil
         connectionState = .authenticating
 
         let username = usernameText
@@ -282,12 +326,18 @@ struct SettingsView: View {
                 let token = try await APIClient.authenticate(serverURL: serverURL, username: username, password: password)
                 repositoryProvider.switchToClient(serverURL: serverURL, username: username, token: token)
                 await performInitialSync(serverURL: serverURL, token: token)
-            } catch {
-                showErrorMessage("Authentication failed: \(error.localizedDescription)")
-                repositoryProvider.switchToLocal()
-                serverMode = "local"
+            } catch APIError.unauthorized {
+                // Expected failure: wrong credentials. Inline message, keep focus.
+                authErrorMessage = "Incorrect username or password."
+                passwordText = ""
                 connectionState = .disconnected
                 healthStatus = .reachable
+                focusedField = .password
+            } catch {
+                authErrorMessage = "Authentication failed: \(error.localizedDescription)"
+                connectionState = .disconnected
+                healthStatus = .reachable
+                focusedField = .password
             }
         }
     }

@@ -29,7 +29,7 @@ struct YATAApp: App {
                     appDelegate.repositoryProvider = repositoryProvider
                     networkMonitor.onReconnect = { [repositoryProvider] in
                         guard repositoryProvider.isClientMode else { return }
-                        try? await repositoryProvider.syncEngine?.fullSync()
+                        try? await repositoryProvider.syncEngine?.syncIfStale()
                         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
                     }
                     networkMonitor.start()
@@ -39,7 +39,7 @@ struct YATAApp: App {
                         UNUserNotificationCenter.current().setBadgeCount(0)
                         if repositoryProvider.isClientMode {
                             Task {
-                                try? await repositoryProvider.syncEngine?.fullSync()
+                                try? await repositoryProvider.syncEngine?.syncIfStale()
                                 NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
                             }
                         }
