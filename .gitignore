@@ -17,7 +17,11 @@ build/
 
 # Claude
 .claude/
+
+# Rust build artefacts (workspace root + legacy per-crate)
+/target/
 yata_backend/target/
+yata_cli/target/
 
 # Backend dev database
 yata_backend/*.db

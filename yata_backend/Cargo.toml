@@ -24,9 +24,3 @@ rpassword = "7"
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
 
-[profile.release]
-opt-level = 3
-lto = "fat"
-codegen-units = 1
-panic = "abort"
-strip = true
