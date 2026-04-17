@@ -49,6 +49,13 @@ struct SettingsView: View {
                 aboutSection
             }
             .navigationTitle("Settings")
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focusedField = nil }
+                }
+            }
             .overlay {
                 if isSyncing {
                     ZStack {
@@ -293,6 +300,7 @@ struct SettingsView: View {
             return
         }
         authErrorMessage = nil
+        focusedField = nil   // tuck the keyboard away while we work
         connectionState = .authenticating
 
         let username = usernameText.trimmingCharacters(in: .whitespaces)
