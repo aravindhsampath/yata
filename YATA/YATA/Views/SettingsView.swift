@@ -6,10 +6,15 @@ import SwiftData
 struct SettingsView: View {
     @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
     @AppStorage("doneListSize") private var doneListSize = 25
+    /// Reactive source of truth for connected-vs-local state. `switchToClient`
+    /// writes this via UserDefaults, so @AppStorage picks up changes from any
+    /// path (sheet success, disconnect, relaunch). The view re-renders in
+    /// lockstep.
     @AppStorage("serverMode") private var serverMode = "local"
     @Environment(RepositoryProvider.self) private var repositoryProvider
 
     @State private var showConnectSheet = false
+    @State private var showDisconnectConfirm = false
     @State private var isSyncing = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -24,10 +29,12 @@ struct SettingsView: View {
 
     private let doneListOptions = [10, 25, 50, 100]
 
+    private var isConnected: Bool { serverMode == "client" }
+
     var body: some View {
         NavigationStack {
             Form {
-                storageSection
+                syncSection
                 appearanceSection
                 recentlyDoneSection
                 aboutSection
@@ -48,64 +55,70 @@ struct SettingsView: View {
             } message: {
                 Text(errorMessage ?? "An unknown error occurred.")
             }
-            .sheet(isPresented: $showConnectSheet, onDismiss: handleSheetDismiss) {
+            .alert("Disconnect from server?", isPresented: $showDisconnectConfirm) {
+                Button("Disconnect", role: .destructive) { disconnect() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your tasks stay on this device. Any pending changes that haven't synced yet will be lost.")
+            }
+            .sheet(isPresented: $showConnectSheet) {
                 ServerConnectSheet()
                     .environment(repositoryProvider)
             }
         }
         .onAppear {
-            if repositoryProvider.isClientMode { refreshSyncStatus() }
+            if isConnected { refreshSyncStatus() }
         }
     }
 
-    // MARK: - Storage
+    // MARK: - Sync section
 
-    private var storageSection: some View {
-        Section("Storage") {
-            Picker("Mode", selection: $serverMode) {
-                Text("Local").tag("local")
-                Text("Server").tag("client")
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: serverMode) { oldValue, newValue in
-                if newValue == "client" && !repositoryProvider.isClientMode {
-                    // User switched the picker to Server but has no session —
-                    // open the credential sheet.
+    @ViewBuilder
+    private var syncSection: some View {
+        Section {
+            if isConnected {
+                connectedRows
+            } else {
+                Button {
                     showConnectSheet = true
-                } else if newValue == "local" && oldValue == "client" {
-                    Task { await repositoryProvider.disconnect() }
+                } label: {
+                    Label("Connect to server…", systemImage: "icloud.and.arrow.up")
                 }
             }
-
-            if serverMode == "client" {
-                if repositoryProvider.isClientMode {
-                    connectedRows
-                } else {
-                    Button("Set up server…") { showConnectSheet = true }
-                }
+        } header: {
+            Text("Sync")
+        } footer: {
+            if !isConnected {
+                Text("Local mode: tasks live only on this device. Connect to a self-hosted YATA server to sync across devices.")
             }
         }
     }
 
     @ViewBuilder
     private var connectedRows: some View {
+        if let host = serverHost {
+            LabeledContent("Server", value: host)
+        }
         if let username = repositoryProvider.connectedUsername {
             LabeledContent("Signed in as", value: username)
         }
         if let lastSync = repositoryProvider.lastSyncTime() {
             LabeledContent("Last sync", value: lastSync)
         }
-        LabeledContent("Pending mutations", value: "\(repositoryProvider.pendingMutationCount())")
+        LabeledContent("Pending changes", value: "\(repositoryProvider.pendingMutationCount())")
 
         syncStatusRow
 
-        Button("Sync now") { Task { await syncNow() } }
+        Button {
+            Task { await syncNow() }
+        } label: {
+            Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+        }
 
-        Button("Disconnect", role: .destructive) {
-            Task {
-                await repositoryProvider.disconnect()
-                serverMode = "local"
-            }
+        Button(role: .destructive) {
+            showDisconnectConfirm = true
+        } label: {
+            Label("Disconnect", systemImage: "rectangle.portrait.and.arrow.right")
         }
     }
 
@@ -133,6 +146,12 @@ struct SettingsView: View {
                 .font(.footnote)
             }
         }
+    }
+
+    private var serverHost: String? {
+        guard let raw = KeychainHelper.loadString(forKey: "yata_server_url"),
+              let url = URL(string: raw) else { return nil }
+        return url.host ?? raw
     }
 
     // MARK: - Other sections
@@ -166,13 +185,12 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    private func handleSheetDismiss() {
-        // If the user cancelled without connecting, revert the picker to Local.
-        if !repositoryProvider.isClientMode {
-            serverMode = "local"
-        } else {
-            refreshSyncStatus()
-        }
+    /// Flip the UI to disconnected immediately, then clean up in the
+    /// background. Waiting on the pre-teardown sync made the tap feel
+    /// unresponsive; the user already confirmed the intent in the alert.
+    private func disconnect() {
+        serverMode = "local"
+        Task { await repositoryProvider.disconnect() }
     }
 
     private func syncNow() async {
@@ -201,11 +219,10 @@ struct SettingsView: View {
 
 // MARK: - ServerConnectSheet
 //
-// A proper modal sheet for credential entry. This is the iOS pattern every
-// serious client (Mail, 1Password, Proton, Bitwarden) uses for server sign-in:
-// its own NavigationStack, a Cancel/Connect toolbar, keyboard lifecycle handled
-// by the sheet itself. Dismissing the sheet — by success, by Cancel, or by
-// swipe-down — tears the keyboard down because the entire scene goes away.
+// Modal credential entry. Its own NavigationStack with Cancel / Connect in
+// the nav bar. Dismissing the sheet (success, Cancel, or swipe-down) tears
+// the keyboard down along with the scene — no responder-chain plumbing
+// required.
 
 struct ServerConnectSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -373,9 +390,6 @@ struct ServerConnectSheet: View {
         }
     }
 
-    /// Push local data to the server on first connect, then pull for
-    /// server-authoritative timestamps. Kept here so the sheet owns its whole
-    /// flow; errors surface inline and the sheet reverts isConnecting.
     private func performInitialSync(serverURL: URL, token: String) async {
         do {
             let apiClient = APIClient(serverURL: serverURL, token: token)
