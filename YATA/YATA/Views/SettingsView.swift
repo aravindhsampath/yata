@@ -1,28 +1,19 @@
 import SwiftUI
 import SwiftData
-import UIKit
+
+// MARK: - SettingsView
 
 struct SettingsView: View {
     @AppStorage("colorScheme") private var colorSchemePreference = ColorSchemePreference.system.rawValue
     @AppStorage("doneListSize") private var doneListSize = 25
     @AppStorage("serverMode") private var serverMode = "local"
     @Environment(RepositoryProvider.self) private var repositoryProvider
-    @Environment(\.modelContext) private var modelContext
 
-    @State private var serverURLText = ""
-    @State private var usernameText = ""
-    @State private var passwordText = ""
-    @State private var isPasswordVisible = false
-    @State private var healthStatus: HealthCheckStatus = .idle
-    @State private var connectionState: ConnectionState = .disconnected
+    @State private var showConnectSheet = false
     @State private var isSyncing = false
-    @State private var authErrorMessage: String?
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var syncStatusValue: SyncStatus = .ok
-    @FocusState private var focusedField: CredentialField?
-
-    private enum CredentialField: Hashable { case serverURL, username, password }
 
     private var selectedPreference: Binding<ColorSchemePreference> {
         Binding(
@@ -33,61 +24,20 @@ struct SettingsView: View {
 
     private let doneListOptions = [10, 25, 50, 100]
 
-    private enum HealthCheckStatus {
-        case idle, checking, reachable, unreachable
-    }
-
-    private enum ConnectionState {
-        case disconnected, authenticating, connected
-    }
-
     var body: some View {
         NavigationStack {
             Form {
-                serverSection
+                storageSection
                 appearanceSection
                 recentlyDoneSection
                 aboutSection
             }
             .navigationTitle("Settings")
-            .scrollDismissesKeyboard(.interactively)
-            .simultaneousGesture(
-                // Tap anywhere outside a field dismisses the keyboard. We use
-                // simultaneousGesture so TextField/Button taps still work —
-                // the field just briefly blurs and re-focuses, which is
-                // acceptable and matches Apple's own Mail/Notes behavior.
-                TapGesture().onEnded {
-                    print("[YATA kbd] tap-outside gesture")
-                    dismissKeyboard()
-                }
-            )
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        print("[YATA kbd] Done toolbar button tapped")
-                        dismissKeyboard()
-                    }
-                }
-            }
-            .onChange(of: connectionState) { old, new in
-                print("[YATA kbd] connectionState changed: \(old) → \(new)")
-                // Any transition out of .disconnected means the credential
-                // fields are gone — aggressively clear any orphaned keyboard.
-                if new != .disconnected {
-                    dismissKeyboard()
-                    // Also schedule one more tick later, in case the view
-                    // rebuild hasn't propagated to the responder chain yet.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        dismissKeyboard()
-                    }
-                }
-            }
             .overlay {
                 if isSyncing {
                     ZStack {
                         Color.black.opacity(0.3).ignoresSafeArea()
-                        ProgressView("Syncing...")
+                        ProgressView("Syncing…")
                             .padding(24)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                     }
@@ -98,26 +48,19 @@ struct SettingsView: View {
             } message: {
                 Text(errorMessage ?? "An unknown error occurred.")
             }
+            .sheet(isPresented: $showConnectSheet, onDismiss: handleSheetDismiss) {
+                ServerConnectSheet()
+                    .environment(repositoryProvider)
+            }
         }
         .onAppear {
-            // Restore UI state from persisted values
-            if serverMode == "client" {
-                connectionState = .connected
-                healthStatus = .reachable
-                if let urlString = KeychainHelper.loadString(forKey: "yata_server_url") {
-                    serverURLText = urlString
-                }
-                if let username = KeychainHelper.loadString(forKey: "yata_username") {
-                    usernameText = username
-                }
-                refreshSyncStatus()
-            }
+            if repositoryProvider.isClientMode { refreshSyncStatus() }
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Storage
 
-    private var serverSection: some View {
+    private var storageSection: some View {
         Section("Storage") {
             Picker("Mode", selection: $serverMode) {
                 Text("Local").tag("local")
@@ -125,138 +68,43 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: serverMode) { oldValue, newValue in
-                if newValue == "local" && oldValue == "client" {
-                    Task {
-                        await repositoryProvider.disconnect()
-                        connectionState = .disconnected
-                        healthStatus = .idle
-                        serverURLText = ""
-                        usernameText = ""
-                        passwordText = ""
-                        authErrorMessage = nil
-                    }
+                if newValue == "client" && !repositoryProvider.isClientMode {
+                    // User switched the picker to Server but has no session —
+                    // open the credential sheet.
+                    showConnectSheet = true
+                } else if newValue == "local" && oldValue == "client" {
+                    Task { await repositoryProvider.disconnect() }
                 }
             }
 
             if serverMode == "client" {
-                clientConfigFields
+                if repositoryProvider.isClientMode {
+                    connectedRows
+                } else {
+                    Button("Set up server…") { showConnectSheet = true }
+                }
             }
         }
     }
 
     @ViewBuilder
-    private var clientConfigFields: some View {
-        switch connectionState {
-        case .disconnected:
-            // All three credentials on one form. The Connect button validates
-            // everything in one shot (URL reachability + authentication).
-            TextField("Server URL", text: $serverURLText)
-                .textContentType(.URL)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .focused($focusedField, equals: .serverURL)
-                .submitLabel(.next)
-                .onSubmit { focusedField = .username }
-
-            TextField("Username", text: $usernameText)
-                .textContentType(.username)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .focused($focusedField, equals: .username)
-                .submitLabel(.next)
-                .onSubmit { focusedField = .password }
-
-            HStack {
-                Group {
-                    if isPasswordVisible {
-                        TextField("Password", text: $passwordText)
-                            .textContentType(.password)
-                            .textInputAutocapitalization(.never)
-                            .disableAutocorrection(true)
-                    } else {
-                        SecureField("Password", text: $passwordText)
-                            .textContentType(.password)
-                    }
-                }
-                .focused($focusedField, equals: .password)
-                .submitLabel(.go)
-                .onSubmit { if canConnect { authenticate() } }
-
-                Button {
-                    isPasswordVisible.toggle()
-                } label: {
-                    Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
-            }
-
-            Button("Connect") { authenticate() }
-                .disabled(!canConnect)
-                .accessibilityHint("Verifies the URL and signs in with the username and password above.")
-
-            if let authErrorMessage {
-                Text(authErrorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-
-        case .authenticating:
-            HStack(spacing: 12) {
-                ProgressView()
-                Text("Connecting…")
-            }
-
-        case .connected:
-            connectedFields
-        }
-    }
-
-    /// Cheap pre-flight check for the Connect button — the server handles the
-    /// real validation. We only want to gray out the button until the user has
-    /// typed something into every field.
-    private var canConnect: Bool {
-        !serverURLText.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !usernameText.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !passwordText.isEmpty
-    }
-
-    @ViewBuilder
-    private var connectedFields: some View {
-        HStack {
-            Text("Status")
-            Spacer()
-            Label("Connected", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        }
-
+    private var connectedRows: some View {
         if let username = repositoryProvider.connectedUsername {
             LabeledContent("Signed in as", value: username)
         }
-
         if let lastSync = repositoryProvider.lastSyncTime() {
-            LabeledContent("Last Sync", value: lastSync)
+            LabeledContent("Last sync", value: lastSync)
         }
-
-        LabeledContent("Pending Mutations", value: "\(repositoryProvider.pendingMutationCount())")
+        LabeledContent("Pending mutations", value: "\(repositoryProvider.pendingMutationCount())")
 
         syncStatusRow
 
-        Button("Sync Now") {
-            Task { await syncNow() }
-        }
+        Button("Sync now") { Task { await syncNow() } }
 
         Button("Disconnect", role: .destructive) {
             Task {
                 await repositoryProvider.disconnect()
                 serverMode = "local"
-                connectionState = .disconnected
-                healthStatus = .idle
-                serverURLText = ""
-                usernameText = ""
-                passwordText = ""
             }
         }
     }
@@ -267,11 +115,9 @@ struct SettingsView: View {
         case .ok:
             EmptyView()
         case .retrying(let failures, let nextRetryIn):
-            HStack {
-                Text("Retrying (\(failures) failures, next in \(Int(nextRetryIn))s)")
-                    .foregroundStyle(.orange)
-                    .font(.footnote)
-            }
+            Text("Retrying (\(failures) failures, next in \(Int(nextRetryIn))s)")
+                .foregroundStyle(.orange)
+                .font(.footnote)
         case .halted(let failures):
             HStack {
                 Text("Sync halted after \(failures) failures")
@@ -288,6 +134,8 @@ struct SettingsView: View {
             }
         }
     }
+
+    // MARK: - Other sections
 
     private var appearanceSection: some View {
         Section("Appearance") {
@@ -318,92 +166,222 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
-    /// Bulletproof keyboard dismissal. On iOS 26 we've observed that just
-    /// clearing @FocusState or sending resignFirstResponder to a nil target
-    /// doesn't always tear down the keyboard — there's an orphan state where
-    /// the TextField has been torn down from the view hierarchy but the
-    /// keyboard remains. Calling `endEditing(true)` on each scene window
-    /// explicitly ends editing, including for orphaned/resign-refused
-    /// responders. This is UIKit's guaranteed path.
-    private func dismissKeyboard() {
-        focusedField = nil
-        let sent = UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil, from: nil, for: nil
-        )
-        var endedCount = 0
-        var windowCount = 0
-        for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene else { continue }
-            for window in windowScene.windows {
-                windowCount += 1
-                if window.endEditing(true) { endedCount += 1 }
-            }
+    private func handleSheetDismiss() {
+        // If the user cancelled without connecting, revert the picker to Local.
+        if !repositoryProvider.isClientMode {
+            serverMode = "local"
+        } else {
+            refreshSyncStatus()
         }
-        print("[YATA kbd] dismissKeyboard sendAction=\(sent) windows=\(windowCount) endedEditing=\(endedCount)")
     }
 
-    private func authenticate() {
-        print("[YATA kbd] authenticate() tapped — state=\(connectionState) focus=\(String(describing: focusedField))")
-        let trimmed = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let serverURL = URL(string: trimmed), let scheme = serverURL.scheme?.lowercased(),
+    private func syncNow() async {
+        isSyncing = true
+        defer {
+            isSyncing = false
+            refreshSyncStatus()
+        }
+        do {
+            try await repositoryProvider.syncEngine?.fullSync()
+            NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+        } catch {
+            errorMessage = "Sync failed: \(error.localizedDescription)"
+            showError = true
+        }
+    }
+
+    private func refreshSyncStatus() {
+        Task {
+            if let engine = repositoryProvider.syncEngine {
+                syncStatusValue = await engine.syncStatus()
+            }
+        }
+    }
+}
+
+// MARK: - ServerConnectSheet
+//
+// A proper modal sheet for credential entry. This is the iOS pattern every
+// serious client (Mail, 1Password, Proton, Bitwarden) uses for server sign-in:
+// its own NavigationStack, a Cancel/Connect toolbar, keyboard lifecycle handled
+// by the sheet itself. Dismissing the sheet — by success, by Cancel, or by
+// swipe-down — tears the keyboard down because the entire scene goes away.
+
+struct ServerConnectSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(RepositoryProvider.self) private var repositoryProvider
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var urlText = ""
+    @State private var usernameText = ""
+    @State private var passwordText = ""
+    @State private var isPasswordVisible = false
+    @State private var isConnecting = false
+    @State private var errorText: String?
+
+    @FocusState private var focus: Field?
+
+    enum Field: Hashable { case url, username, password }
+
+    private var canConnect: Bool {
+        !urlText.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !usernameText.trimmingCharacters(in: .whitespaces).isEmpty &&
+        !passwordText.isEmpty &&
+        !isConnecting
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Server") {
+                    TextField("https://yata.example.com", text: $urlText)
+                        .textContentType(.URL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focus, equals: .url)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .username }
+                }
+
+                Section("Account") {
+                    TextField("Username", text: $usernameText)
+                        .textContentType(.username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .focused($focus, equals: .username)
+                        .submitLabel(.next)
+                        .onSubmit { focus = .password }
+
+                    HStack {
+                        Group {
+                            if isPasswordVisible {
+                                TextField("Password", text: $passwordText)
+                                    .textContentType(.password)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                            } else {
+                                SecureField("Password", text: $passwordText)
+                                    .textContentType(.password)
+                            }
+                        }
+                        .focused($focus, equals: .password)
+                        .submitLabel(.go)
+                        .onSubmit { if canConnect { attempt() } }
+
+                        Button {
+                            isPasswordVisible.toggle()
+                        } label: {
+                            Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isPasswordVisible ? "Hide password" : "Show password")
+                    }
+                }
+
+                if let errorText {
+                    Section {
+                        Text(errorText)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+            .navigationTitle("Connect to Server")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isConnecting)
+            .scrollDismissesKeyboard(.interactively)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .disabled(isConnecting)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if isConnecting {
+                        ProgressView()
+                    } else {
+                        Button("Connect") { attempt() }
+                            .disabled(!canConnect)
+                            .bold()
+                    }
+                }
+            }
+            .overlay {
+                if isConnecting {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Connecting…")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(24)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    .transition(.opacity)
+                }
+            }
+        }
+        .onAppear { focus = .url }
+    }
+
+    // MARK: - Connect flow
+
+    private func attempt() {
+        let trimmed = urlText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let serverURL = URL(string: trimmed),
+              let scheme = serverURL.scheme?.lowercased(),
               scheme == "http" || scheme == "https" else {
-            authErrorMessage = "Enter a full URL starting with http:// or https://"
-            focusedField = .serverURL
+            errorText = "Enter a full URL starting with http:// or https://"
+            focus = .url
             return
         }
-        authErrorMessage = nil
-        dismissKeyboard()    // tuck the keyboard away while we work
-        connectionState = .authenticating
-        print("[YATA kbd] state → .authenticating")
+        errorText = nil
+        isConnecting = true
 
         let username = usernameText.trimmingCharacters(in: .whitespaces)
         let password = passwordText
+
         Task {
-            // 1. Health check — distinguishes "server unreachable" from "bad credentials".
+            // Health probe first so we can distinguish unreachable from unauthorized.
             let reachable = await APIClient.checkHealth(serverURL: serverURL)
             guard reachable else {
-                authErrorMessage = "Can't reach \(serverURL.host ?? "server"). Check the URL and your connection."
-                connectionState = .disconnected
-                healthStatus = .unreachable
-                focusedField = .serverURL
+                errorText = "Can't reach \(serverURL.host ?? "server"). Check the URL and your connection."
+                isConnecting = false
+                focus = .url
                 return
             }
 
-            // 2. Authenticate.
+            // Authenticate.
             do {
-                let token = try await APIClient.authenticate(serverURL: serverURL, username: username, password: password)
-                print("[YATA kbd] auth OK — switching to client, running initial sync")
-                repositoryProvider.switchToClient(serverURL: serverURL, username: username, token: token)
+                let token = try await APIClient.authenticate(
+                    serverURL: serverURL, username: username, password: password
+                )
+                repositoryProvider.switchToClient(
+                    serverURL: serverURL, username: username, token: token
+                )
                 await performInitialSync(serverURL: serverURL, token: token)
-                print("[YATA kbd] initial sync complete — state=\(connectionState)")
-                dismissKeyboard()    // belt-and-suspenders post-success
+                dismiss()
             } catch APIError.unauthorized {
-                authErrorMessage = "Incorrect username or password."
+                errorText = "Incorrect username or password."
                 passwordText = ""
-                connectionState = .disconnected
-                healthStatus = .reachable
-                focusedField = .password
+                isConnecting = false
+                focus = .password
             } catch {
-                authErrorMessage = "Authentication failed: \(error.localizedDescription)"
-                connectionState = .disconnected
-                healthStatus = .reachable
-                focusedField = .password
+                errorText = "Authentication failed: \(error.localizedDescription)"
+                isConnecting = false
+                focus = .password
             }
         }
     }
 
+    /// Push local data to the server on first connect, then pull for
+    /// server-authoritative timestamps. Kept here so the sheet owns its whole
+    /// flow; errors surface inline and the sheet reverts isConnecting.
     private func performInitialSync(serverURL: URL, token: String) async {
-        isSyncing = true
-        defer { isSyncing = false }
-
         do {
             let apiClient = APIClient(serverURL: serverURL, token: token)
-
-            // Push all local TodoItems
-            let allItemsDescriptor = FetchDescriptor<TodoItem>()
-            let allItems = try modelContext.fetch(allItemsDescriptor)
             let dateFormatter = Self.dateFormatter
+
+            let allItems = try modelContext.fetch(FetchDescriptor<TodoItem>())
             for item in allItems {
                 let body = CreateItemRequest(
                     id: item.id,
@@ -418,11 +396,9 @@ struct SettingsView: View {
                 try? await (apiClient.requestNoContent(.createItem(body: body)) as Void)
             }
 
-            // Push all local RepeatingItems
             let localRepeatingRepo = LocalRepeatingRepository(modelContainer: modelContext.container)
             let repeatingItems = try localRepeatingRepo.fetchItems()
             for item in repeatingItems {
-                let dateFormatter = Self.dateFormatter
                 let body = CreateRepeatingRequest(
                     id: item.id,
                     title: item.title,
@@ -437,45 +413,13 @@ struct SettingsView: View {
                 try? await (apiClient.requestNoContent(.createRepeating(body: body)) as Void)
             }
 
-            // Pull to get server timestamps
             try await repositoryProvider.syncEngine?.fullSync()
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
-
-            connectionState = .connected
-            passwordText = ""
         } catch {
-            showErrorMessage("Initial sync failed: \(error.localizedDescription)")
+            errorText = "Initial sync failed: \(error.localizedDescription)"
             await repositoryProvider.disconnect()
-            serverMode = "local"
-            connectionState = .disconnected
+            isConnecting = false
         }
-    }
-
-    private func syncNow() async {
-        isSyncing = true
-        defer {
-            isSyncing = false
-            refreshSyncStatus()
-        }
-        do {
-            try await repositoryProvider.syncEngine?.fullSync()
-            NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
-        } catch {
-            showErrorMessage("Sync failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func refreshSyncStatus() {
-        Task {
-            if let engine = repositoryProvider.syncEngine {
-                syncStatusValue = await engine.syncStatus()
-            }
-        }
-    }
-
-    private func showErrorMessage(_ message: String) {
-        errorMessage = message
-        showError = true
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -487,8 +431,13 @@ struct SettingsView: View {
     }()
 }
 
+// MARK: - Preview
+
 #Preview {
-    let container = try! ModelContainer(for: TodoItem.self, RepeatingItem.self, PendingMutation.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+    let container = try! ModelContainer(
+        for: TodoItem.self, RepeatingItem.self, PendingMutation.self,
+        configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+    )
     SettingsView()
         .environment(RepositoryProvider.preview(container: container))
         .modelContainer(container)
