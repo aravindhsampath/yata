@@ -51,6 +51,16 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(
+                // Tap anywhere outside a field dismisses the keyboard. We use
+                // simultaneousGesture so TextField/Button taps still work —
+                // the field just briefly blurs and re-focuses, which is
+                // acceptable and matches Apple's own Mail/Notes behavior.
+                TapGesture().onEnded {
+                    print("[YATA kbd] tap-outside gesture")
+                    dismissKeyboard()
+                }
+            )
             .toolbar {
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
