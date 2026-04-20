@@ -200,10 +200,15 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             priority: item.priorityRawValue,
             isDone: item.isDone,
             sortOrder: item.sortOrder,
-            reminderDate: item.reminderDate.map { Self.dateFormatter.string(from: $0) },
+            reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
             scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
             rescheduleCount: item.rescheduleCount,
-            updatedAt: item.updatedAt.map { Self.dateFormatter.string(from: $0) }
+            // updated_at MUST be an ISO8601 timestamp matching the server's
+            // stored RFC3339 value — the conflict check on the server compares
+            // these two strings lexically. A date-only format (YYYY-MM-DD) is
+            // always lexically less than an RFC3339 datetime, which makes
+            // every update a false 409 conflict and discards the local change.
+            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
         )
     }
 
@@ -231,7 +236,9 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             scheduledMonth: item.scheduledMonth,
             sortOrder: item.sortOrder,
             defaultUrgency: item.defaultUrgencyRawValue,
-            updatedAt: item.updatedAt.map { Self.dateFormatter.string(from: $0) }
+            // See updateRequest above: ISO8601, not date-only, or the server
+            // treats every update as a conflict.
+            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
         )
     }
 

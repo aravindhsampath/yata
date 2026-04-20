@@ -93,7 +93,7 @@ pub async fn update_repeating(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    if existing.updated_at > body.updated_at {
+    if crate::time::is_server_newer(&existing.updated_at, &body.updated_at) {
         let server_version =
             serde_json::to_value(&existing).map_err(|e| AppError::Internal(e.to_string()))?;
         return Err(AppError::Conflict(server_version));

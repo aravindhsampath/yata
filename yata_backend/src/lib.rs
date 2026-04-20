@@ -6,6 +6,7 @@ pub mod handlers;
 pub mod models;
 pub mod password;
 pub mod routes;
+pub mod time;
 
 pub mod test_helpers {
     use axum::Router;

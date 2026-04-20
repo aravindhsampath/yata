@@ -145,8 +145,11 @@ pub async fn update_item(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Conflict detection: if server's updated_at is newer than client's, reject
-    if existing.updated_at > body.updated_at {
+    // Conflict detection: parse both timestamps and compare as instants.
+    // Lexical string comparison breaks across precision/timezone variations
+    // (e.g. client sending "2026-04-20" vs server-stored RFC3339 — always
+    // flagged conflict, dropping legitimate client updates).
+    if crate::time::is_server_newer(&existing.updated_at, &body.updated_at) {
         let server_version =
             serde_json::to_value(&existing).map_err(|e| AppError::Internal(e.to_string()))?;
         return Err(AppError::Conflict(server_version));
