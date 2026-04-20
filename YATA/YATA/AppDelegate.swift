@@ -105,11 +105,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // MARK: - Action Handlers
 
+    /// Local-tz calendar-day formatter (see DateFormatters.dateOnly for
+    /// the full rationale). Notification-action handlers mutate
+    /// scheduledDate, then mirror to the server — they must use the same
+    /// local-tz formatting every other write path uses or the user's
+    /// local day drifts by one when they're east of GMT.
     private static let dateFormatter: DateFormatter = {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.timeZone = TimeZone(secondsFromGMT: 0)
+        fmt.timeZone = .current
         return fmt
     }()
 

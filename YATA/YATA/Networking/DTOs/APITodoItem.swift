@@ -67,19 +67,27 @@ enum DateFormatters {
         return formatter
     }()
 
+    /// `scheduled_date` strings. Uses the device's **local** time zone
+    /// because a TodoItem's `scheduledDate` is set to local-midnight via
+    /// `Calendar.current.startOfDay(for:)`. Formatting that instant with
+    /// UTC shifts it to the previous day for anyone east of GMT near
+    /// midnight, which would make newly-added tasks disappear from the
+    /// "today" view on the next pull (regression observed 2026-04-20).
     static let dateOnly: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.timeZone = .current
         return formatter
     }()
 
+    /// RepeatingItem `scheduled_time` strings. Also local — users
+    /// schedule repeating rules by wall-clock.
     static let timeOnly: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.timeZone = .current
         return formatter
     }()
 

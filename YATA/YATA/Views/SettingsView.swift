@@ -438,11 +438,14 @@ struct ServerConnectSheet: View {
         }
     }
 
+    /// Same local-tz rule as `DateFormatters.dateOnly` — the initial
+    /// backfill sends `scheduled_date` in the same format the rest of
+    /// the app round-trips.
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = .current
         return formatter
     }()
 }

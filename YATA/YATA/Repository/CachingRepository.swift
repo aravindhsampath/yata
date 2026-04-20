@@ -24,11 +24,18 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
     private let localRepeating: LocalRepeatingRepository
     private let apiClient: APIClient
 
+    /// Formatter for `scheduled_date` (a calendar-day string, "yyyy-MM-dd").
+    /// Uses the device's **local** time zone because `scheduledDate` in
+    /// the SwiftData model is "midnight local of the day the task lands
+    /// on" — set via `Calendar.current.startOfDay(for:)` in `HomeViewModel`.
+    /// Formatting that instant with UTC loses the user's local day
+    /// whenever the device is east of GMT and near midnight, making tasks
+    /// disappear from the "today" view after a pull overwrites the field.
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.timeZone = .current
         return formatter
     }()
 

@@ -393,4 +393,40 @@ final class DTOTests: XCTestCase {
         XCTAssertEqual(json["start_date"] as? String, "2026-04-05")
         XCTAssertEqual(json["end_date"] as? String, "2026-04-11")
     }
+
+    // MARK: - DateFormatters round-trip
+    //
+    // Regression tests for the 2026-04-20 "vanishing tasks" bug. The
+    // `dateOnly` formatter must round-trip a local-midnight Date back
+    // to the same Date; any timezone mismatch (e.g. UTC formatting a
+    // local-midnight instant) shifts the day by ±1 for users east or
+    // west of GMT, which made newly-added tasks disappear from the
+    // "today" view on the next pull.
+
+    func testDateOnlyRoundTrip_preservesLocalMidnight() {
+        // The canonical construction in HomeViewModel: local midnight.
+        let today = Calendar.current.startOfDay(for: .now)
+        let formatted = DateFormatters.dateOnly.string(from: today)
+        let parsed = DateFormatters.dateOnly.date(from: formatted)
+        XCTAssertEqual(
+            parsed, today,
+            "dateOnly round-trip must return the same Date; " +
+            "a mismatch shifts the task to the wrong local day."
+        )
+    }
+
+    func testDateOnlyFormats_asLocalDayString() {
+        // For any local midnight, the formatted string must read as the
+        // local-calendar day — never the UTC day.
+        let localMidnight = Calendar.current.startOfDay(for: .now)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = .current
+        let expected = String(
+            format: "%04d-%02d-%02d",
+            cal.component(.year, from: localMidnight),
+            cal.component(.month, from: localMidnight),
+            cal.component(.day, from: localMidnight)
+        )
+        XCTAssertEqual(DateFormatters.dateOnly.string(from: localMidnight), expected)
+    }
 }
