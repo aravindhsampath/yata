@@ -53,6 +53,7 @@
 		C10000010000000000000008 /* EndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000008 /* EndpointTests.swift */; };
 		C10000010000000000000009 /* DTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000009 /* DTOTests.swift */; };
 		C10000010000000000000010 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000010 /* APIClientTests.swift */; };
+		C10000010000000000000099 /* LiveServerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000099 /* LiveServerIntegrationTests.swift */; };
 		C10000010000000000000011 /* ModelMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000011 /* ModelMigrationTests.swift */; };
 		D10000010000000000000001 /* PendingMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000001 /* PendingMutation.swift */; };
 		D10000010000000000000003 /* CachingRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000010000000000000003 /* CachingRepository.swift */; };
@@ -121,6 +122,7 @@
 		C20000010000000000000008 /* EndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000009 /* DTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000010 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000099 /* LiveServerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServerIntegrationTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000011 /* ModelMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMigrationTests.swift; sourceTree = "<group>"; };
 		D20000010000000000000001 /* PendingMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingMutation.swift; sourceTree = "<group>"; };
 		D20000010000000000000003 /* CachingRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachingRepository.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 				C20000010000000000000008 /* EndpointTests.swift */,
 				C20000010000000000000009 /* DTOTests.swift */,
 				C20000010000000000000010 /* APIClientTests.swift */,
+				C20000010000000000000099 /* LiveServerIntegrationTests.swift */,
 				C20000010000000000000011 /* ModelMigrationTests.swift */,
 			);
 			path = YATATests;
@@ -462,6 +465,7 @@
 				C10000010000000000000008 /* EndpointTests.swift in Sources */,
 				C10000010000000000000009 /* DTOTests.swift in Sources */,
 				C10000010000000000000010 /* APIClientTests.swift in Sources */,
+				C10000010000000000000099 /* LiveServerIntegrationTests.swift in Sources */,
 				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

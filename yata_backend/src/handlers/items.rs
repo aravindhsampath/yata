@@ -113,7 +113,7 @@ pub async fn create_item(
     .await?;
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&body.id)
@@ -137,7 +137,7 @@ pub async fn update_item(
     }
 
     let existing = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -167,7 +167,7 @@ pub async fn update_item(
     };
 
     sqlx::query(
-        "UPDATE todo_items SET title = ?, priority = ?, is_done = ?, sort_order = ?, reminder_date = ?, scheduled_date = ?, reschedule_count = ?, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE todo_items SET title = ?, priority = ?, is_done = ?, sort_order = ?, reminder_date = ?, scheduled_date = ?, reschedule_count = ?, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&body.title)
     .bind(body.priority)
@@ -184,7 +184,7 @@ pub async fn update_item(
     .await?;
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -205,7 +205,7 @@ pub async fn delete_item(
     // would silently hide the delete from clients on next /sync).
     let mut tx = pool.begin().await?;
 
-    let result = sqlx::query("DELETE FROM todo_items WHERE user_id = ? AND id = ?")
+    let result = sqlx::query("DELETE FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE")
         .bind(&auth.user_id)
         .bind(&id)
         .execute(&mut *tx)
@@ -244,7 +244,7 @@ pub async fn reorder_items(
     let now = Utc::now().to_rfc3339();
     for (index, id) in body.ids.iter().enumerate() {
         sqlx::query(
-            "UPDATE todo_items SET sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ? AND scheduled_date = ? AND priority = ?",
+            "UPDATE todo_items SET sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE AND scheduled_date = ? AND priority = ?",
         )
         .bind(index as i64)
         .bind(&now)
@@ -282,7 +282,7 @@ pub async fn move_item(
     let mut tx = pool.begin().await?;
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -307,7 +307,7 @@ pub async fn move_item(
 
     // Move the item
     sqlx::query(
-        "UPDATE todo_items SET priority = ?, sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE todo_items SET priority = ?, sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(body.to_priority)
     .bind(body.at_index)
@@ -318,7 +318,7 @@ pub async fn move_item(
     .await?;
 
     let updated = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -338,7 +338,7 @@ pub async fn mark_done(
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "UPDATE todo_items SET is_done = 1, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE todo_items SET is_done = 1, completed_at = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&now)
     .bind(&now)
@@ -352,7 +352,7 @@ pub async fn mark_done(
     }
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -372,7 +372,7 @@ pub async fn mark_undone(
     let now = Utc::now().to_rfc3339();
 
     let result = sqlx::query(
-        "UPDATE todo_items SET is_done = 0, completed_at = NULL, scheduled_date = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE todo_items SET is_done = 0, completed_at = NULL, scheduled_date = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&body.scheduled_date)
     .bind(&now)
@@ -386,7 +386,7 @@ pub async fn mark_undone(
     }
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -404,7 +404,7 @@ pub async fn reschedule_item(
     Json(body): Json<RescheduleRequest>,
 ) -> Result<Json<TodoItem>, AppError> {
     let existing = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -420,7 +420,7 @@ pub async fn reschedule_item(
     };
 
     sqlx::query(
-        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE todo_items SET scheduled_date = ?, reschedule_count = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&body.to_date)
     .bind(new_count)
@@ -431,7 +431,7 @@ pub async fn reschedule_item(
     .await?;
 
     let item = sqlx::query_as::<_, TodoItem>(
-        "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)

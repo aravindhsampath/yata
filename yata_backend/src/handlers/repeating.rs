@@ -61,7 +61,7 @@ pub async fn create_repeating(
     .await?;
 
     let item = sqlx::query_as::<_, RepeatingItem>(
-        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&body.id)
@@ -85,7 +85,7 @@ pub async fn update_repeating(
     }
 
     let existing = sqlx::query_as::<_, RepeatingItem>(
-        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -102,7 +102,7 @@ pub async fn update_repeating(
     let now = Utc::now().to_rfc3339();
 
     sqlx::query(
-        "UPDATE repeating_items SET title = ?, frequency = ?, scheduled_time = ?, scheduled_day_of_week = ?, scheduled_day_of_month = ?, scheduled_month = ?, sort_order = ?, default_urgency = ?, updated_at = ? WHERE user_id = ? AND id = ?",
+        "UPDATE repeating_items SET title = ?, frequency = ?, scheduled_time = ?, scheduled_day_of_week = ?, scheduled_day_of_month = ?, scheduled_month = ?, sort_order = ?, default_urgency = ?, updated_at = ? WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&body.title)
     .bind(body.frequency)
@@ -119,7 +119,7 @@ pub async fn update_repeating(
     .await?;
 
     let item = sqlx::query_as::<_, RepeatingItem>(
-        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ?",
+        "SELECT * FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -140,7 +140,7 @@ pub async fn delete_repeating(
     // gone, tombstones partially written" (clients resurrect on pull).
     let mut tx = pool.begin().await?;
 
-    let result = sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ?")
+    let result = sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE")
         .bind(&auth.user_id)
         .bind(&id)
         .execute(&mut *tx)
@@ -155,7 +155,7 @@ pub async fn delete_repeating(
 
     // Cascade: delete undone TodoItems linked to this repeating rule (scoped to this user).
     let linked_ids: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND is_done = 0",
+        "SELECT id FROM todo_items WHERE user_id = ? AND source_repeating_id = ? COLLATE NOCASE AND is_done = 0",
     )
     .bind(&auth.user_id)
     .bind(&id)
@@ -163,7 +163,7 @@ pub async fn delete_repeating(
     .await?;
 
     sqlx::query(
-        "DELETE FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND is_done = 0",
+        "DELETE FROM todo_items WHERE user_id = ? AND source_repeating_id = ? COLLATE NOCASE AND is_done = 0",
     )
     .bind(&auth.user_id)
     .bind(&id)

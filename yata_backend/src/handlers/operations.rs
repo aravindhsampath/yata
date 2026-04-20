@@ -80,7 +80,7 @@ pub async fn materialize(
 
             // Dedup: skip if an item already exists for this rule + date
             let (count,): (i64,) = sqlx::query_as(
-                "SELECT COUNT(*) FROM todo_items WHERE user_id = ? AND source_repeating_id = ? AND scheduled_date = ?",
+                "SELECT COUNT(*) FROM todo_items WHERE user_id = ? AND source_repeating_id = ? COLLATE NOCASE AND scheduled_date = ?",
             )
             .bind(&auth.user_id)
             .bind(&rule.id)
