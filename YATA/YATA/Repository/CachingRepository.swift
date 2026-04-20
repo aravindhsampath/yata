@@ -270,10 +270,12 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
             scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
             rescheduleCount: item.rescheduleCount,
-            // ISO8601 timestamp, matching the server's RFC3339 stored form.
-            // A date-only format here causes false 409 conflicts; see
-            // earlier fix commit.
-            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
+            // ISO8601 with fractional seconds, matching the server's
+            // chrono-rfc3339 stored form. Whole-second format drops subsec
+            // precision on round-trip, which the server's is_server_newer
+            // currently normalizes — but emitting fractional seconds is
+            // correct for any future server that does exact-match checks.
+            updatedAt: item.updatedAt.map { DateFormatters.iso8601WithFractionalSeconds.string(from: $0) }
         )
     }
 
@@ -301,7 +303,7 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             scheduledMonth: item.scheduledMonth,
             sortOrder: item.sortOrder,
             defaultUrgency: item.defaultUrgencyRawValue,
-            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
+            updatedAt: item.updatedAt.map { DateFormatters.iso8601WithFractionalSeconds.string(from: $0) }
         )
     }
 }
