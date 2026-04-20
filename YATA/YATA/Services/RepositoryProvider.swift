@@ -6,8 +6,13 @@ import SwiftData
 final class RepositoryProvider {
     private(set) var todoRepository: any TodoRepository
     private(set) var repeatingRepository: any RepeatingRepository
+    /// Pull-only sync coordinator. Only non-nil in API (client) mode.
     private(set) var syncEngine: SyncEngine?
-    private(set) var mutationLogger: MutationLogger?
+    /// API client for the current session. Only non-nil in API (client) mode.
+    /// Exposed so non-repository flows (e.g. notification-action handlers in
+    /// AppDelegate that mutate a TodoItem via their own ModelContext) can
+    /// mirror the write to the server.
+    private(set) var apiClient: APIClient?
 
     var isClientMode: Bool {
         UserDefaults.standard.string(forKey: "serverMode") == "client"
@@ -30,25 +35,22 @@ final class RepositoryProvider {
            let urlString = KeychainHelper.loadString(forKey: "yata_server_url"),
            let serverURL = URL(string: urlString),
            let token = KeychainHelper.loadString(forKey: "yata_api_token") {
+            // API (client) mode: write-through CachingRepository + pull-only SyncEngine.
             let localTodo = LocalTodoRepository(modelContainer: container)
             let localRepeating = LocalRepeatingRepository(modelContainer: container)
-            let logger = MutationLogger(modelContext: ModelContext(container))
             let apiClient = APIClient(serverURL: serverURL, token: token)
-            let engine = SyncEngine(
-                apiClient: apiClient,
-                mutationLogger: logger,
-                modelContainer: container
-            )
-            let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, logger: logger)
+            let engine = SyncEngine(apiClient: apiClient, modelContainer: container)
+            let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, apiClient: apiClient)
             self.todoRepository = caching
             self.repeatingRepository = caching
-            self.mutationLogger = logger
             self.syncEngine = engine
+            self.apiClient = apiClient
         } else {
+            // Local mode: plain SwiftData-backed repositories. No network.
             self.todoRepository = LocalTodoRepository(modelContainer: container)
             self.repeatingRepository = LocalRepeatingRepository(modelContainer: container)
             self.syncEngine = nil
-            self.mutationLogger = nil
+            self.apiClient = nil
         }
     }
 
@@ -57,7 +59,7 @@ final class RepositoryProvider {
         todoRepository = LocalTodoRepository(modelContainer: container)
         repeatingRepository = LocalRepeatingRepository(modelContainer: container)
         syncEngine = nil
-        mutationLogger = nil
+        apiClient = nil
     }
 
     func switchToClient(serverURL: URL, username: String, token: String) {
@@ -68,43 +70,26 @@ final class RepositoryProvider {
 
         let localTodo = LocalTodoRepository(modelContainer: container)
         let localRepeating = LocalRepeatingRepository(modelContainer: container)
-        let logger = MutationLogger(modelContext: ModelContext(container))
-        let apiClient = APIClient(serverURL: serverURL, token: token)
-        let engine = SyncEngine(
-            apiClient: apiClient,
-            mutationLogger: logger,
-            modelContainer: container
-        )
-        let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, logger: logger)
+        let client = APIClient(serverURL: serverURL, token: token)
+        let engine = SyncEngine(apiClient: client, modelContainer: container)
+        let caching = CachingRepository(local: localTodo, localRepeating: localRepeating, apiClient: client)
         todoRepository = caching
         repeatingRepository = caching
-        mutationLogger = logger
         syncEngine = engine
+        apiClient = client
     }
 
     func disconnect() async {
-        // Pull latest server state before disconnecting
+        // Pull latest server state once before tearing down so the local
+        // cache reflects the final server truth. Best-effort.
         try? await syncEngine?.fullSync()
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
 
-        // Clear pending mutations
-        if let logger = mutationLogger {
-            if let mutations = try? logger.pendingMutations() {
-                for mutation in mutations {
-                    try? logger.deleteMutation(mutation)
-                }
-            }
-        }
         KeychainHelper.delete(key: "yata_api_token")
         KeychainHelper.delete(key: "yata_server_url")
         KeychainHelper.delete(key: "yata_username")
         UserDefaults.standard.removeObject(forKey: "yata_lastSyncTimestamp")
         switchToLocal()
-    }
-
-    func pendingMutationCount() -> Int {
-        guard let logger = mutationLogger else { return 0 }
-        return (try? logger.pendingMutations().count) ?? 0
     }
 
     func lastSyncTime() -> String? {

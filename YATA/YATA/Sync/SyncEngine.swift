@@ -6,7 +6,6 @@ import SwiftData
 enum SyncError: Error {
     case authenticationRequired
     case networkUnavailable(underlying: Error)
-    case pushFailed(underlying: Error)
     case pullFailed(underlying: Error)
     case syncHalted(consecutiveFailures: Int)
 }
@@ -19,32 +18,30 @@ enum SyncStatus {
     case halted(failures: Int)
 }
 
-// MARK: - MutationSnapshot
-
-/// Value-type copy of PendingMutation fields that can safely cross actor boundaries.
-/// SwiftData @Model objects are MainActor-bound and cannot be sent to other actors.
-private struct MutationSnapshot {
-    let id: UUID
-    let entityType: String
-    let entityID: UUID
-    let mutationType: String
-    let payload: Data
-    let retryCount: Int
-}
-
 // MARK: - SyncEngine
-
+//
+// Pull-only sync coordinator for API (client) mode.
+//
+// Under write-through semantics the iOS app pushes every mutation
+// immediately via CachingRepository — there is no per-mutation push queue
+// for SyncEngine to drain. SyncEngine's job is purely cross-device
+// reconciliation: fetch the server's delta since the last sync and apply
+// it to the local cache, skipping nothing (the local cache has no pending
+// writes to protect from overwrite).
+//
+// Triggers (from YATAApp / AppDelegate / NetworkMonitor):
+//   - scenePhase becomes .active       → syncIfStale()
+//   - network reconnects               → syncIfStale()
+//   - BGAppRefreshTask fires           → syncIfStale()
+//   - User taps "Sync now" in Settings → fullSync()
+//   - User taps "Disconnect"           → fullSync() best-effort before teardown
 actor SyncEngine {
     private let apiClient: APIClient
-    private let mutationLogger: MutationLogger
-    /// ModelContainer is Sendable; ModelContext is not. We store the container
-    /// on the actor and materialize a fresh context inside each MainActor.run
-    /// block that touches SwiftData. SwiftData's internal concurrency model is
-    /// built for short-lived, main-actor-bound contexts, so this is both the
-    /// compiler-sanctioned path and the recommended pattern.
+    /// ModelContainer is Sendable; ModelContext is not. We create a
+    /// short-lived main-actor-bound context inside each MainActor.run.
     private let modelContainer: ModelContainer
 
-    // MARK: - Backoff state
+    // MARK: - Backoff state (for pull failures)
 
     private var consecutiveFailures: Int = 0
     private var backoffSeconds: TimeInterval = 0
@@ -53,21 +50,13 @@ actor SyncEngine {
 
     private var isSyncHalted: Bool { consecutiveFailures >= maxConsecutiveFailures }
 
-    /// Timestamp of the last fullSync attempt (start, not completion). Used by
-    /// `syncIfStale(minInterval:)` to coalesce the three auto-fire triggers
-    /// (scene-active, network-reconnect, BGAppRefresh) that can all fire
-    /// within seconds of launch.
+    /// Timestamp of the last fullSync attempt (start, not completion).
+    /// `syncIfStale` uses this to coalesce the three auto-fire triggers
+    /// (scene-active, network-reconnect, BGAppRefresh).
     private var lastSyncAttemptAt: Date?
 
-    private let payloadDecoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
-        return decoder
-    }()
-
-    init(apiClient: APIClient, mutationLogger: MutationLogger, modelContainer: ModelContainer) {
+    init(apiClient: APIClient, modelContainer: ModelContainer) {
         self.apiClient = apiClient
-        self.mutationLogger = mutationLogger
         self.modelContainer = modelContainer
     }
 
@@ -75,7 +64,9 @@ actor SyncEngine {
 
     func syncStatus() -> SyncStatus {
         if isSyncHalted { return .halted(failures: consecutiveFailures) }
-        if consecutiveFailures > 0 { return .retrying(failures: consecutiveFailures, nextRetryIn: backoffSeconds) }
+        if consecutiveFailures > 0 {
+            return .retrying(failures: consecutiveFailures, nextRetryIn: backoffSeconds)
+        }
         return .ok
     }
 
@@ -84,82 +75,53 @@ actor SyncEngine {
         backoffSeconds = 0
     }
 
-    func push() async throws {
-        // Check if sync is halted due to too many failures
+    /// Call `fullSync()` only if no attempt has started in the last
+    /// `minInterval` seconds. Use this for auto-fire triggers.
+    /// User-initiated flows (Sync now, disconnect) call `fullSync()`
+    /// directly so user intent is never ignored.
+    func syncIfStale(minInterval: TimeInterval = 30) async throws {
+        if let last = lastSyncAttemptAt, Date.now.timeIntervalSince(last) < minInterval {
+            return
+        }
+        try await fullSync()
+    }
+
+    /// Pull the server's delta since the last sync and apply it to the
+    /// local cache. In write-through mode this is the only kind of sync —
+    /// there's no push because writes are already server-confirmed before
+    /// they become visible locally.
+    func fullSync() async throws {
+        lastSyncAttemptAt = .now
+
         if isSyncHalted {
             throw SyncError.syncHalted(consecutiveFailures: consecutiveFailures)
         }
 
-        // Wait for backoff period if needed
         if backoffSeconds > 0 {
             try await Task.sleep(for: .seconds(backoffSeconds))
         }
 
-        // 1. Compact the queue
-        try await MainActor.run { try mutationLogger.compact() }
-
-        // 2. Fetch pending mutations and copy to value types
-        let snapshots: [MutationSnapshot] = try await MainActor.run {
-            let mutations = try mutationLogger.pendingMutations()
-            return mutations.map { m in
-                MutationSnapshot(
-                    id: m.id,
-                    entityType: m.entityType,
-                    entityID: m.entityID,
-                    mutationType: m.mutationType,
-                    payload: m.payload,
-                    retryCount: m.retryCount
-                )
-            }
+        do {
+            try await pull()
+            consecutiveFailures = 0
+            backoffSeconds = 0
+        } catch let error as SyncError {
+            // Auth/network errors propagate unchanged; they're triage
+            // signals for the caller (e.g. force re-login on 401).
+            throw error
+        } catch {
+            consecutiveFailures += 1
+            backoffSeconds = min(pow(2.0, Double(consecutiveFailures - 1)), maxBackoff)
+            throw SyncError.pullFailed(underlying: error)
         }
-
-        // 3. Process each mutation in order
-        for snapshot in snapshots {
-            do {
-                try await processMutation(snapshot)
-            } catch let error as APIError {
-                switch error {
-                case .unauthorized:
-                    throw SyncError.authenticationRequired
-                case .networkError(let underlying):
-                    throw SyncError.networkUnavailable(underlying: underlying)
-                case .conflict(let serverData):
-                    try await handleConflict(snapshot: snapshot, serverData: serverData)
-                case .notFound:
-                    try await handleNotFound(snapshot: snapshot)
-                default:
-                    // Increment retry count and record error
-                    let mutationID = snapshot.id
-                    let container = modelContainer
-                    try await MainActor.run {
-                        let context = ModelContext(container)
-                        let descriptor = FetchDescriptor<PendingMutation>(
-                            predicate: #Predicate<PendingMutation> { $0.id == mutationID }
-                        )
-                        if let mutation = try context.fetch(descriptor).first {
-                            mutation.retryCount += 1
-                            mutation.lastError = error.localizedDescription
-                            try context.save()
-                        }
-                    }
-                    // Track consecutive failures for backoff
-                    consecutiveFailures += 1
-                    backoffSeconds = min(pow(2.0, Double(consecutiveFailures - 1)), maxBackoff)
-                    throw SyncError.pushFailed(underlying: error)
-                }
-            }
-        }
-
-        // All mutations processed successfully — reset backoff
-        consecutiveFailures = 0
-        backoffSeconds = 0
     }
 
-    func pull() async throws {
-        // 1. Read lastSyncTimestamp
-        let timestamp = UserDefaults.standard.string(forKey: "yata_lastSyncTimestamp") ?? "1970-01-01T00:00:00Z"
+    // MARK: - Pull
 
-        // 2. Call the sync API
+    private func pull() async throws {
+        let timestamp = UserDefaults.standard.string(forKey: "yata_lastSyncTimestamp")
+            ?? "1970-01-01T00:00:00Z"
+
         let response: SyncResponse
         do {
             response = try await apiClient.request(.sync(since: timestamp))
@@ -174,19 +136,12 @@ actor SyncEngine {
             }
         }
 
-        // 3-8. Apply changes on MainActor
         let container = modelContainer
         try await MainActor.run {
             let context = ModelContext(container)
 
-            // 3. Collect entity IDs with pending mutations
-            let pendingMutations = try mutationLogger.pendingMutations()
-            let pendingEntityIDs = Set(pendingMutations.map(\.entityID))
-
-            // 4. Apply upserted TodoItems
+            // Apply upserted TodoItems.
             for apiItem in response.items.upserted {
-                guard !pendingEntityIDs.contains(apiItem.id) else { continue }
-
                 let targetID = apiItem.id
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
@@ -198,10 +153,8 @@ actor SyncEngine {
                 }
             }
 
-            // 5. Apply upserted RepeatingItems
+            // Apply upserted RepeatingItems.
             for apiItem in response.repeating.upserted {
-                guard !pendingEntityIDs.contains(apiItem.id) else { continue }
-
                 let targetID = apiItem.id
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
@@ -213,303 +166,35 @@ actor SyncEngine {
                 }
             }
 
-            // 6. Apply deleted TodoItem IDs
+            // Apply deleted TodoItem IDs.
             for deletedID in response.items.deleted {
                 let targetID = deletedID
-                let todoDescriptor = FetchDescriptor<TodoItem>(
-                    predicate: #Predicate<TodoItem> { $0.id == targetID }
-                )
-                if let item = try context.fetch(todoDescriptor).first {
-                    context.delete(item)
-                }
-                // Also delete any pending mutations for this entity
-                let mutationDescriptor = FetchDescriptor<PendingMutation>(
-                    predicate: #Predicate<PendingMutation> { $0.entityID == targetID }
-                )
-                for mutation in try context.fetch(mutationDescriptor) {
-                    context.delete(mutation)
-                }
-            }
-
-            // 7. Apply deleted RepeatingItem IDs
-            for deletedID in response.repeating.deleted {
-                let targetID = deletedID
-                let repeatingDescriptor = FetchDescriptor<RepeatingItem>(
-                    predicate: #Predicate<RepeatingItem> { $0.id == targetID }
-                )
-                if let item = try context.fetch(repeatingDescriptor).first {
-                    context.delete(item)
-                }
-                let mutationDescriptor = FetchDescriptor<PendingMutation>(
-                    predicate: #Predicate<PendingMutation> { $0.entityID == targetID }
-                )
-                for mutation in try context.fetch(mutationDescriptor) {
-                    context.delete(mutation)
-                }
-            }
-
-            // 8. Save
-            try context.save()
-        }
-
-        // 9. Store serverTime
-        UserDefaults.standard.set(response.serverTime, forKey: "yata_lastSyncTimestamp")
-    }
-
-    /// Call `fullSync()` only if no attempt has started in the last
-    /// `minInterval` seconds. Use this for auto-fire triggers (scene-active,
-    /// network-reconnect, BGAppRefresh). User-initiated syncs should call
-    /// `fullSync()` directly so "Sync Now" never feels ignored.
-    func syncIfStale(minInterval: TimeInterval = 30) async throws {
-        if let last = lastSyncAttemptAt, Date.now.timeIntervalSince(last) < minInterval {
-            return
-        }
-        try await fullSync()
-    }
-
-    func fullSync() async throws {
-        lastSyncAttemptAt = .now
-        do {
-            try await push()
-        } catch let error as SyncError {
-            switch error {
-            case .authenticationRequired, .networkUnavailable:
-                throw error
-            case .syncHalted:
-                throw error
-            case .pushFailed, .pullFailed:
-                // Partial push failure — still attempt pull
-                try await pull()
-                return
-            }
-        }
-        try await pull()
-    }
-
-    // MARK: - Private: Process a single mutation
-
-    private func processMutation(_ snapshot: MutationSnapshot) async throws {
-        let endpoint = try endpointFor(snapshot)
-        let isNoContent = snapshot.entityType == "todoItem" && snapshot.mutationType == "delete"
-            || snapshot.entityType == "repeatingItem" && snapshot.mutationType == "delete"
-
-        if isNoContent {
-            try await apiClient.requestNoContent(endpoint)
-            try await deleteMutationByID(snapshot.id)
-            return
-        }
-
-        // Rollover and materialize: no local entity to update
-        if snapshot.mutationType == "rollover" {
-            let _: RolloverResponse = try await apiClient.request(endpoint)
-            try await deleteMutationByID(snapshot.id)
-            return
-        }
-        if snapshot.mutationType == "materialize" {
-            let _: MaterializeResponse = try await apiClient.request(endpoint)
-            try await deleteMutationByID(snapshot.id)
-            return
-        }
-
-        // Reorder: returns multiple items
-        if snapshot.mutationType == "reorder" {
-            let response: ItemsResponse = try await apiClient.request(endpoint)
-            let container = modelContainer
-            try await MainActor.run {
-                let context = ModelContext(container)
-                for apiItem in response.items {
-                    let targetID = apiItem.id
-                    let descriptor = FetchDescriptor<TodoItem>(
-                        predicate: #Predicate<TodoItem> { $0.id == targetID }
-                    )
-                    if let existing = try context.fetch(descriptor).first {
-                        existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
-                    } else {
-                        context.insert(apiItem.toTodoItem())
-                    }
-                }
-                try context.save()
-            }
-            try await deleteMutationByID(snapshot.id)
-            return
-        }
-
-        // Standard single-entity responses
-        if snapshot.entityType == "todoItem" {
-            let apiItem: APITodoItem = try await apiClient.request(endpoint)
-            let container = modelContainer
-            try await MainActor.run {
-                let context = ModelContext(container)
-                let targetID = snapshot.entityID
                 let descriptor = FetchDescriptor<TodoItem>(
                     predicate: #Predicate<TodoItem> { $0.id == targetID }
                 )
-                if let existing = try context.fetch(descriptor).first {
-                    existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
+                if let item = try context.fetch(descriptor).first {
+                    context.delete(item)
                 }
-                try context.save()
             }
-        } else if snapshot.entityType == "repeatingItem" {
-            let apiItem: APIRepeatingItem = try await apiClient.request(endpoint)
-            let container = modelContainer
-            try await MainActor.run {
-                let context = ModelContext(container)
-                let targetID = snapshot.entityID
+
+            // Apply deleted RepeatingItem IDs.
+            for deletedID in response.repeating.deleted {
+                let targetID = deletedID
                 let descriptor = FetchDescriptor<RepeatingItem>(
                     predicate: #Predicate<RepeatingItem> { $0.id == targetID }
                 )
-                if let existing = try context.fetch(descriptor).first {
-                    existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
+                if let item = try context.fetch(descriptor).first {
+                    context.delete(item)
                 }
-                try context.save()
             }
+
+            try context.save()
         }
 
-        try await deleteMutationByID(snapshot.id)
+        UserDefaults.standard.set(response.serverTime, forKey: "yata_lastSyncTimestamp")
     }
 
-    // MARK: - Private: Endpoint mapping
-
-    private func endpointFor(_ snapshot: MutationSnapshot) throws -> Endpoint {
-        let entityType = snapshot.entityType
-        let mutationType = snapshot.mutationType
-        let payload = snapshot.payload
-        let entityID = snapshot.entityID
-
-        // Decode the snake_case JSON payload into a dictionary
-        let d = (try? JSONSerialization.jsonObject(with: payload) as? [String: Any]) ?? [:]
-
-        switch (entityType, mutationType) {
-        case ("todoItem", "create"):
-            return .createItem(body: CreateItemRequest(
-                id: uuid(d, "id") ?? entityID,
-                title: str(d, "title"),
-                priority: int(d, "priority"),
-                scheduledDate: str(d, "scheduled_date"),
-                reminderDate: d["reminder_date"] as? String,
-                sortOrder: int(d, "sort_order"),
-                sourceRepeatingId: uuid(d, "source_repeating_id"),
-                sourceRepeatingRuleName: d["source_repeating_rule_name"] as? String
-            ))
-
-        case ("todoItem", "update"):
-            return .updateItem(id: entityID, body: UpdateItemRequest(
-                title: str(d, "title"),
-                priority: int(d, "priority"),
-                isDone: (d["is_done"] as? Bool) ?? false,
-                sortOrder: int(d, "sort_order"),
-                reminderDate: d["reminder_date"] as? String,
-                scheduledDate: str(d, "scheduled_date"),
-                rescheduleCount: int(d, "reschedule_count"),
-                updatedAt: d["updated_at"] as? String
-            ))
-
-        case ("todoItem", "delete"):
-            return .deleteItem(id: entityID)
-
-        case ("todoItem", "reorder"):
-            let uuidStrings = (d["ids"] as? [String]) ?? []
-            return .reorderItems(body: ReorderRequest(
-                date: str(d, "date"),
-                priority: int(d, "priority"),
-                ids: uuidStrings.compactMap { UUID(uuidString: $0) }
-            ))
-
-        case ("todoItem", "move"):
-            return .moveItem(id: entityID, body: MoveRequest(
-                toPriority: int(d, "to_priority"),
-                atIndex: int(d, "at_index")
-            ))
-
-        case ("todoItem", "done"):
-            return .markDone(id: entityID)
-
-        case ("todoItem", "undone"):
-            return .markUndone(id: entityID, body: UndoneRequest(
-                scheduledDate: str(d, "scheduled_date")
-            ))
-
-        case ("todoItem", "reschedule"):
-            return .rescheduleItem(id: entityID, body: RescheduleRequest(
-                toDate: str(d, "to_date"),
-                resetCount: (d["reset_count"] as? Bool) ?? false
-            ))
-
-        case ("todoItem", "rollover"):
-            return .rollover(body: RolloverRequest(
-                toDate: str(d, "to_date")
-            ))
-
-        case ("todoItem", "materialize"):
-            return .materialize(body: MaterializeRequest(
-                startDate: str(d, "start_date"),
-                endDate: str(d, "end_date")
-            ))
-
-        case ("repeatingItem", "create"):
-            return .createRepeating(body: CreateRepeatingRequest(
-                id: uuid(d, "id") ?? entityID,
-                title: str(d, "title"),
-                frequency: int(d, "frequency"),
-                scheduledTime: str(d, "scheduled_time"),
-                scheduledDayOfWeek: d["scheduled_day_of_week"] as? Int,
-                scheduledDayOfMonth: d["scheduled_day_of_month"] as? Int,
-                scheduledMonth: d["scheduled_month"] as? Int,
-                sortOrder: int(d, "sort_order"),
-                defaultUrgency: int(d, "default_urgency")
-            ))
-
-        case ("repeatingItem", "update"):
-            return .updateRepeating(id: entityID, body: UpdateRepeatingRequest(
-                title: str(d, "title"),
-                frequency: int(d, "frequency"),
-                scheduledTime: str(d, "scheduled_time"),
-                scheduledDayOfWeek: d["scheduled_day_of_week"] as? Int,
-                scheduledDayOfMonth: d["scheduled_day_of_month"] as? Int,
-                scheduledMonth: d["scheduled_month"] as? Int,
-                sortOrder: int(d, "sort_order"),
-                defaultUrgency: int(d, "default_urgency"),
-                updatedAt: d["updated_at"] as? String
-            ))
-
-        case ("repeatingItem", "delete"):
-            return .deleteRepeating(id: entityID)
-
-        default:
-            throw APIError.invalidURL
-        }
-    }
-
-    // MARK: - Dictionary extraction helpers
-
-    private func str(_ d: [String: Any], _ key: String) -> String {
-        (d[key] as? String) ?? ""
-    }
-
-    private func int(_ d: [String: Any], _ key: String) -> Int {
-        (d[key] as? Int) ?? 0
-    }
-
-    private func uuid(_ d: [String: Any], _ key: String) -> UUID? {
-        guard let s = d[key] as? String else { return nil }
-        return UUID(uuidString: s)
-    }
-
-    // MARK: - Private: Helpers
-
-    private func deleteMutationByID(_ mutationID: UUID) async throws {
-        let container = modelContainer
-        try await MainActor.run {
-            let context = ModelContext(container)
-            let descriptor = FetchDescriptor<PendingMutation>(
-                predicate: #Predicate<PendingMutation> { $0.id == mutationID }
-            )
-            if let mutation = try context.fetch(descriptor).first {
-                context.delete(mutation)
-                try context.save()
-            }
-        }
-    }
+    // MARK: - Server → local field copies
 
     @MainActor
     private func applyServerTodoItem(_ apiItem: APITodoItem, to existing: TodoItem) {
@@ -538,83 +223,5 @@ actor SyncEngine {
         existing.sortOrder = apiItem.sortOrder
         existing.defaultUrgencyRawValue = apiItem.defaultUrgency
         existing.updatedAt = apiItem.updatedAt.flatMap { DateFormatters.parseDateTime($0) }
-    }
-}
-
-// MARK: - Conflict and 404 handling extension
-
-extension SyncEngine {
-    /// Called from push() error handling when a 409 conflict is received.
-    /// The serverData is the full HTTP response body: `{"error":{"code":"conflict","message":"...","server_version":{...}}}`.
-    /// We extract `server_version` and decode it as the appropriate entity type.
-    fileprivate func handleConflict(snapshot: MutationSnapshot, serverData: Data) async throws {
-        // Extract server_version from the error envelope
-        let serverVersionData: Data
-        if let envelope = try? JSONSerialization.jsonObject(with: serverData) as? [String: Any],
-           let errorObj = envelope["error"] as? [String: Any],
-           let serverVersion = errorObj["server_version"] {
-            serverVersionData = try JSONSerialization.data(withJSONObject: serverVersion)
-        } else {
-            // Fallback: try treating the entire body as the entity
-            serverVersionData = serverData
-        }
-
-        if snapshot.entityType == "todoItem" {
-            let apiItem = try payloadDecoder.decode(APITodoItem.self, from: serverVersionData)
-            let container = modelContainer
-            try await MainActor.run {
-                let context = ModelContext(container)
-                let targetID = snapshot.entityID
-                let descriptor = FetchDescriptor<TodoItem>(
-                    predicate: #Predicate<TodoItem> { $0.id == targetID }
-                )
-                if let existing = try context.fetch(descriptor).first {
-                    applyServerTodoItem(apiItem, to: existing)
-                    try context.save()
-                }
-            }
-        } else if snapshot.entityType == "repeatingItem" {
-            let apiItem = try payloadDecoder.decode(APIRepeatingItem.self, from: serverVersionData)
-            let container = modelContainer
-            try await MainActor.run {
-                let context = ModelContext(container)
-                let targetID = snapshot.entityID
-                let descriptor = FetchDescriptor<RepeatingItem>(
-                    predicate: #Predicate<RepeatingItem> { $0.id == targetID }
-                )
-                if let existing = try context.fetch(descriptor).first {
-                    applyServerRepeatingItem(apiItem, to: existing)
-                    try context.save()
-                }
-            }
-        }
-        try await deleteMutationByID(snapshot.id)
-    }
-
-    /// Called from push() error handling when a 404 is received
-    fileprivate func handleNotFound(snapshot: MutationSnapshot) async throws {
-        let container = modelContainer
-        try await MainActor.run {
-            let context = ModelContext(container)
-            let targetID = snapshot.entityID
-            if snapshot.entityType == "todoItem" {
-                let descriptor = FetchDescriptor<TodoItem>(
-                    predicate: #Predicate<TodoItem> { $0.id == targetID }
-                )
-                if let item = try context.fetch(descriptor).first {
-                    context.delete(item)
-                    try context.save()
-                }
-            } else if snapshot.entityType == "repeatingItem" {
-                let descriptor = FetchDescriptor<RepeatingItem>(
-                    predicate: #Predicate<RepeatingItem> { $0.id == targetID }
-                )
-                if let item = try context.fetch(descriptor).first {
-                    context.delete(item)
-                    try context.save()
-                }
-            }
-        }
-        try await deleteMutationByID(snapshot.id)
     }
 }

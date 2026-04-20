@@ -16,7 +16,10 @@ struct HomeView: View {
         }
         .task {
             if viewModel == nil {
-                let vm = HomeViewModel(repository: repositoryProvider.todoRepository)
+                let vm = HomeViewModel(
+                    repository: repositoryProvider.todoRepository,
+                    syncEngine: repositoryProvider.syncEngine
+                )
                 viewModel = vm
                 await vm.performRollover()
                 await vm.materializeRepeatingItems()

@@ -1,11 +1,28 @@
 import Foundation
 import SwiftData
 
+/// Write-through repository used only in API (server-connected) mode.
+///
+/// Contract:
+/// - Reads: always from local SwiftData cache. No network calls on the read
+///   path. SyncEngine's periodic pull is what refreshes the cache.
+/// - Writes: optimistic local mutation followed by an immediate API call on
+///   the same call stack. On server success the local row is reconciled with
+///   the server's version (specifically `updated_at`, so the next conflict
+///   check uses the right timestamp). On server failure we attempt a cheap
+///   rollback when the old state is snapshottable (add/move/reschedule),
+///   otherwise we simply rethrow — the ViewModel is expected to trigger a
+///   pull which will re-seed the cache from server truth.
+/// - No batching, no mutation log, no "pending" state. A successful return
+///   from any write method means the server has acknowledged it.
+///
+/// In Local mode this type is NOT instantiated — `RepositoryProvider` wires
+/// `LocalTodoRepository` directly. Nothing here affects Local-mode behavior.
 @MainActor
 final class CachingRepository: TodoRepository, RepeatingRepository {
     private let local: LocalTodoRepository
     private let localRepeating: LocalRepeatingRepository
-    private let logger: MutationLogger
+    private let apiClient: APIClient
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -15,13 +32,13 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
         return formatter
     }()
 
-    init(local: LocalTodoRepository, localRepeating: LocalRepeatingRepository, logger: MutationLogger) {
+    init(local: LocalTodoRepository, localRepeating: LocalRepeatingRepository, apiClient: APIClient) {
         self.local = local
         self.localRepeating = localRepeating
-        self.logger = logger
+        self.apiClient = apiClient
     }
 
-    // MARK: - TodoRepository (Read-only -- no logging)
+    // MARK: - TodoRepository (read-only — no network)
 
     func fetchItems(for date: Date, priority: Priority) throws -> [TodoItem] {
         try local.fetchItems(for: date, priority: priority)
@@ -43,103 +60,123 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
         try local.fetchRepeatingItem(by: id)
     }
 
-    // MARK: - TodoRepository (Writes -- delegate + log)
+    // MARK: - TodoRepository (writes — local-then-server, rollback on failure)
 
-    func add(_ item: TodoItem) throws {
+    func add(_ item: TodoItem) async throws {
         try local.add(item)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: item.id,
-            mutationType: "create",
-            payload: createRequest(from: item)
-        )
+        do {
+            let response: APITodoItem = try await apiClient.request(
+                .createItem(body: createRequest(from: item))
+            )
+            reconcile(server: response, into: item)
+            try local.update(item)
+        } catch {
+            // Rollback: the item didn't exist until we just inserted it.
+            try? local.delete(item)
+            throw error
+        }
     }
 
-    func update(_ item: TodoItem) throws {
+    func update(_ item: TodoItem) async throws {
+        // The caller (ViewModel) has already mutated `item` in place. Commit
+        // that to the store so the optimistic UI matches persistence, then
+        // mirror to the server.
         try local.update(item)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: item.id,
-            mutationType: "update",
-            payload: updateRequest(from: item)
-        )
+        do {
+            let response: APITodoItem = try await apiClient.request(
+                .updateItem(id: item.id, body: updateRequest(from: item))
+            )
+            reconcile(server: response, into: item)
+            try local.update(item)
+        } catch {
+            // We can't cheaply rollback (old field values weren't snapshotted
+            // before the VM mutated the model). The ViewModel's catch should
+            // trigger a pull so the cache resyncs to server truth.
+            throw error
+        }
     }
 
-    func delete(_ item: TodoItem) throws {
-        let entityID = item.id
+    func delete(_ item: TodoItem) async throws {
+        // Delete server-first so a 5xx/network error doesn't leave the local
+        // gone but the server still holding the row. The local delete only
+        // happens after the server confirms.
+        let id = item.id
+        try await apiClient.requestNoContent(.deleteItem(id: id))
         try local.delete(item)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: entityID,
-            mutationType: "delete",
-            payload: EmptyPayload()
-        )
     }
 
-    func reorder(ids: [UUID], in priority: Priority) throws {
+    func reorder(ids: [UUID], in priority: Priority) async throws {
         try local.reorder(ids: ids, in: priority)
-        let syntheticID = Self.syntheticReorderID(for: priority)
-        let today = Self.dateFormatter.string(from: Date.now)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: syntheticID,
-            mutationType: "reorder",
-            payload: ReorderRequest(date: today, priority: priority.rawValue, ids: ids)
+        let today = Self.dateFormatter.string(from: .now)
+        let _: ItemsResponse = try await apiClient.request(
+            .reorderItems(body: ReorderRequest(date: today, priority: priority.rawValue, ids: ids))
         )
+        // No per-item reconciliation — the server's response covers all
+        // items in the lane but our cache already reflects the new order.
+        // A pull on next trigger will reconcile updated_at timestamps.
     }
 
-    func move(_ item: TodoItem, to priority: Priority) throws {
+    func move(_ item: TodoItem, to priority: Priority) async throws {
+        let oldPriority = item.priority
         try local.move(item, to: priority)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: item.id,
-            mutationType: "move",
-            payload: MoveRequest(toPriority: priority.rawValue, atIndex: item.sortOrder)
-        )
+        do {
+            let response: APITodoItem = try await apiClient.request(
+                .moveItem(id: item.id, body: MoveRequest(toPriority: priority.rawValue, atIndex: item.sortOrder))
+            )
+            reconcile(server: response, into: item)
+            try local.update(item)
+        } catch {
+            // Rollback — put it back in the old lane.
+            try? local.move(item, to: oldPriority)
+            throw error
+        }
     }
 
-    func rolloverOverdueItems(to date: Date) throws {
+    func rolloverOverdueItems(to date: Date) async throws {
         try local.rolloverOverdueItems(to: date)
-        let dateStr = Self.dateFormatter.string(from: date)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: Self.rolloverSyntheticID,
-            mutationType: "rollover",
-            payload: RolloverRequest(toDate: dateStr)
+        let _: RolloverResponse = try await apiClient.request(
+            .rollover(body: RolloverRequest(toDate: Self.dateFormatter.string(from: date)))
         )
     }
 
-    func materializeRepeatingItems(for dateRange: ClosedRange<Date>) throws {
+    func materializeRepeatingItems(for dateRange: ClosedRange<Date>) async throws {
         try local.materializeRepeatingItems(for: dateRange)
-        let startStr = Self.dateFormatter.string(from: dateRange.lowerBound)
-        let endStr = Self.dateFormatter.string(from: dateRange.upperBound)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: Self.materializeSyntheticID,
-            mutationType: "materialize",
-            payload: MaterializeRequest(startDate: startStr, endDate: endStr)
+        let _: MaterializeResponse = try await apiClient.request(
+            .materialize(body: MaterializeRequest(
+                startDate: Self.dateFormatter.string(from: dateRange.lowerBound),
+                endDate: Self.dateFormatter.string(from: dateRange.upperBound)
+            ))
         )
     }
 
-    func reschedule(_ item: TodoItem, to date: Date, resetCount: Bool) throws {
+    func reschedule(_ item: TodoItem, to date: Date, resetCount: Bool) async throws {
+        let oldDate = item.scheduledDate
+        let oldCount = item.rescheduleCount
         try local.reschedule(item, to: date, resetCount: resetCount)
-        let dateStr = Self.dateFormatter.string(from: date)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: item.id,
-            mutationType: "reschedule",
-            payload: RescheduleRequest(toDate: dateStr, resetCount: resetCount)
-        )
+        do {
+            let response: APITodoItem = try await apiClient.request(
+                .rescheduleItem(id: item.id, body: RescheduleRequest(
+                    toDate: Self.dateFormatter.string(from: date),
+                    resetCount: resetCount
+                ))
+            )
+            reconcile(server: response, into: item)
+            try local.update(item)
+        } catch {
+            // Rollback the two fields the local reschedule touched.
+            item.scheduledDate = oldDate
+            item.rescheduleCount = oldCount
+            try? local.update(item)
+            throw error
+        }
     }
 
     func deleteUndoneOccurrences(for repeatingID: UUID) throws {
+        // Purely-local cleanup. The server performs its own cascade when the
+        // parent repeating rule is DELETE'd; this method is called by
+        // `LocalRepeatingRepository.delete` before the server round-trip to
+        // keep the UI in sync. Nothing to push.
         try local.deleteUndoneOccurrences(for: repeatingID)
-        try logger.log(
-            entityType: "todoItem",
-            entityID: repeatingID,
-            mutationType: "deleteOccurrences",
-            payload: RepeatingIDPayload(repeatingId: repeatingID)
-        )
     }
 
     // MARK: - RepeatingRepository
@@ -148,35 +185,65 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
         try localRepeating.fetchItems()
     }
 
-    func add(_ item: RepeatingItem) throws {
+    func add(_ item: RepeatingItem) async throws {
         try localRepeating.add(item)
-        try logger.log(
-            entityType: "repeatingItem",
-            entityID: item.id,
-            mutationType: "create",
-            payload: createRepeatingRequest(from: item)
-        )
+        do {
+            let response: APIRepeatingItem = try await apiClient.request(
+                .createRepeating(body: createRepeatingRequest(from: item))
+            )
+            reconcile(server: response, into: item)
+            try localRepeating.update(item)
+        } catch {
+            try? localRepeating.delete(item)
+            throw error
+        }
     }
 
-    func update(_ item: RepeatingItem) throws {
+    func update(_ item: RepeatingItem) async throws {
         try localRepeating.update(item)
-        try logger.log(
-            entityType: "repeatingItem",
-            entityID: item.id,
-            mutationType: "update",
-            payload: updateRepeatingRequest(from: item)
-        )
+        do {
+            let response: APIRepeatingItem = try await apiClient.request(
+                .updateRepeating(id: item.id, body: updateRepeatingRequest(from: item))
+            )
+            reconcile(server: response, into: item)
+            try localRepeating.update(item)
+        } catch {
+            throw error
+        }
     }
 
-    func delete(_ item: RepeatingItem) throws {
-        let entityID = item.id
+    func delete(_ item: RepeatingItem) async throws {
+        let id = item.id
+        // Server-first: the server's delete handler cascades to linked
+        // undone occurrences on its side. Local cascade runs from
+        // `LocalRepeatingRepository.delete`.
+        try await apiClient.requestNoContent(.deleteRepeating(id: id))
         try localRepeating.delete(item)
-        try logger.log(
-            entityType: "repeatingItem",
-            entityID: entityID,
-            mutationType: "delete",
-            payload: EmptyPayload()
-        )
+    }
+
+    // MARK: - Reconciliation
+    //
+    // After a successful server mutation we adopt the server's
+    // `updated_at` (and `completed_at` when the server set it) so the next
+    // conflict check on that row uses the server's clock. We deliberately
+    // DON'T overwrite user-facing fields — the user may have mutated them
+    // again optimistically while the request was in flight.
+
+    private func reconcile(server: APITodoItem, into item: TodoItem) {
+        if let ts = server.updatedAt.flatMap({ DateFormatters.parseDateTime($0) }) {
+            item.updatedAt = ts
+        }
+        if let ca = server.completedAt.flatMap({ DateFormatters.parseDateTime($0) }) {
+            // Only adopt server-set completedAt when the local view still
+            // considers the task done.
+            if item.isDone { item.completedAt = ca }
+        }
+    }
+
+    private func reconcile(server: APIRepeatingItem, into item: RepeatingItem) {
+        if let ts = server.updatedAt.flatMap({ DateFormatters.parseDateTime($0) }) {
+            item.updatedAt = ts
+        }
     }
 
     // MARK: - Payload Builders
@@ -187,7 +254,7 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             title: item.title,
             priority: item.priorityRawValue,
             scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
-            reminderDate: item.reminderDate.map { Self.dateFormatter.string(from: $0) },
+            reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
             sortOrder: item.sortOrder,
             sourceRepeatingId: item.sourceRepeatingID,
             sourceRepeatingRuleName: item.sourceRepeatingRuleName
@@ -203,11 +270,9 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
             scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
             rescheduleCount: item.rescheduleCount,
-            // updated_at MUST be an ISO8601 timestamp matching the server's
-            // stored RFC3339 value — the conflict check on the server compares
-            // these two strings lexically. A date-only format (YYYY-MM-DD) is
-            // always lexically less than an RFC3339 datetime, which makes
-            // every update a false 409 conflict and discards the local change.
+            // ISO8601 timestamp, matching the server's RFC3339 stored form.
+            // A date-only format here causes false 409 conflicts; see
+            // earlier fix commit.
             updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
         )
     }
@@ -236,26 +301,7 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
             scheduledMonth: item.scheduledMonth,
             sortOrder: item.sortOrder,
             defaultUrgency: item.defaultUrgencyRawValue,
-            // See updateRequest above: ISO8601, not date-only, or the server
-            // treats every update as a conflict.
             updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
         )
     }
-
-    // MARK: - Synthetic IDs
-
-    private static func syntheticReorderID(for priority: Priority) -> UUID {
-        UUID(uuidString: "00000000-0000-0000-0000-00000000000\(priority.rawValue)")!
-    }
-
-    private static let rolloverSyntheticID = UUID(uuidString: "00000000-0000-0000-0000-000000000010")!
-    private static let materializeSyntheticID = UUID(uuidString: "00000000-0000-0000-0000-000000000011")!
-}
-
-// MARK: - Helper payloads
-
-private struct EmptyPayload: Encodable {}
-
-private struct RepeatingIDPayload: Encodable {
-    let repeatingId: UUID
 }

@@ -197,26 +197,41 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
     }
 
-    // MARK: - Mutation Logging
+    // MARK: - Server mirror for notification-action writes
 
-    /// Logs an update mutation for sync when in client mode.
-    /// The item is saved locally via its own ModelContext first;
-    /// this method only records the pending mutation for the SyncEngine.
+    /// The three notification-action handlers (Mark Done / Snooze 30 /
+    /// Tomorrow) mutate a TodoItem via a standalone ModelContext before
+    /// the app is even fully spun up. In API (client) mode we need to
+    /// mirror that write to the server immediately — otherwise the server
+    /// state diverges from the local cache until the next pull.
+    ///
+    /// In Local mode this is a no-op (apiClient is nil).
     @MainActor
     private func logMutation(for item: TodoItem) {
-        guard let logger = repositoryProvider?.mutationLogger else { return }
-        let fmt = Self.dateFormatter
-        let payload = UpdateItemRequest(
+        guard let client = repositoryProvider?.apiClient else { return }
+        let body = UpdateItemRequest(
             title: item.title,
             priority: item.priorityRawValue,
             isDone: item.isDone,
             sortOrder: item.sortOrder,
-            reminderDate: item.reminderDate.map { fmt.string(from: $0) },
-            scheduledDate: fmt.string(from: item.scheduledDate),
+            reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
+            scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
             rescheduleCount: item.rescheduleCount,
-            updatedAt: item.updatedAt.map { fmt.string(from: $0) }
+            // ISO8601 timestamp matching server's RFC3339 — any other format
+            // triggers false 409 conflicts on the server's string compare.
+            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
         )
-        try? logger.log(entityType: "todoItem", entityID: item.id, mutationType: "update", payload: payload)
+        let id = item.id
+        Task {
+            // Fire-and-forget: notification actions don't have a UI to show
+            // errors on. A pull on next foreground will catch any drift.
+            do {
+                let _: APITodoItem = try await client.request(.updateItem(id: id, body: body))
+            } catch {
+                // Intentionally swallowed; the item is already saved
+                // locally, and the next /sync pull will reconcile.
+            }
+        }
     }
 }
 

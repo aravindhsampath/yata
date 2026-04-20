@@ -105,7 +105,6 @@ struct SettingsView: View {
         if let lastSync = repositoryProvider.lastSyncTime() {
             LabeledContent("Last sync", value: lastSync)
         }
-        LabeledContent("Pending changes", value: "\(repositoryProvider.pendingMutationCount())")
 
         syncStatusRow
 

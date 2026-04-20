@@ -13,31 +13,38 @@ The user chooses their mode in Settings. The app feels identical in both — the
 
 ## Why This Architecture
 
-A todo app that stutters on every tap while waiting for a server response is worse than a notepad. The API is the source of truth, but the *user experience* is the local cache. Every interaction hits SwiftData first, then syncs to the server in the background. The user never waits for a network round-trip to see the result of their action.
+The API is the source of truth. Local storage is a **read cache only** — it keeps the UI fast but never speaks on its own behalf. Every user action hits the server on the same call stack; the UI update and the server write are part of one await chain. This is the **write-through with optimistic UI** pattern (Linear, Proton). Offline in client mode is a real failure state: writes surface an error; reads come from the stale cache.
 
-This is **optimistic local-first with server reconciliation** — the same pattern used by Linear, Notion, and Figma, scaled down to a personal todo app where conflicts are rare and the stakes of a wrong merge are low.
+This replaced an earlier "optimistic local-first with deferred batch sync" design — that pattern created a divergence window (the interval between syncs) where local state and server state could silently disagree, and a failed push during that window silently discarded the local change. Write-through eliminates the window.
 
 ---
 
 ## The Two Modes in Detail
 
-### Local Mode (current behavior)
+### Local Mode (unchanged)
 
 ```
 User action → HomeViewModel → LocalTodoRepository → SwiftData
 ```
 
-No network. No sync. `LocalTodoRepository` is the only repository implementation in use. This is YATA 1.0 as it exists today.
+No network. No sync. `LocalTodoRepository` is the only repository implementation in use. This is YATA 1.0 as it always was.
 
-### Client Mode
+### Client Mode (write-through)
 
 ```
-User action → HomeViewModel → CachingRepository → SwiftData (immediate)
+User action → HomeViewModel → CachingRepository
                                     │
-                                    └──→ SyncEngine → API (background)
+                                    ├── optimistic local write (SwiftData)
+                                    ├── await api.request(…)   (server round-trip)
+                                    └── reconcile server fields (updated_at, etc.)
+
+On API error:
+                                    ├── rollback local (add / move / reschedule)
+                                    │   OR: rethrow; VM triggers SyncEngine.pull()
+                                    └── error surfaces in ViewModel.errorMessage
 ```
 
-A new `CachingRepository` wraps the existing `LocalTodoRepository` and adds a `SyncEngine` layer. The ViewModel doesn't know or care which mode it's in — the `TodoRepository` protocol is the same.
+`CachingRepository` wraps `LocalTodoRepository` + `APIClient`. The ViewModel doesn't know or care which mode it's in — the `TodoRepository` protocol is the same. `SyncEngine` is pull-only — there is no per-mutation push queue; writes are server-confirmed before control returns to the VM.
 
 ---
 

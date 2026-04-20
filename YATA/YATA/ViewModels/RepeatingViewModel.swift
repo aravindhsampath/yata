@@ -6,6 +6,11 @@ import SwiftUI
 final class RepeatingViewModel {
     private let repository: any RepeatingRepository
     private let todoRepository: (any TodoRepository)?
+    /// Pull-only sync coordinator. Non-nil in API mode — used by
+    /// `handleWriteError` to resync server truth after a failed write.
+    /// Nil in Local mode, in which case the helper just surfaces the
+    /// error message (unchanged pre-refactor behavior).
+    private let syncEngine: SyncEngine?
 
     var items: [RepeatingItem] = []
     var isLoading = false
@@ -17,9 +22,26 @@ final class RepeatingViewModel {
         set { if !newValue { errorMessage = nil } }
     }
 
-    init(repository: any RepeatingRepository, todoRepository: (any TodoRepository)? = nil) {
+    init(
+        repository: any RepeatingRepository,
+        todoRepository: (any TodoRepository)? = nil,
+        syncEngine: SyncEngine? = nil
+    ) {
         self.repository = repository
         self.todoRepository = todoRepository
+        self.syncEngine = syncEngine
+    }
+
+    /// Standard catch-block helper. Surfaces the error to the UI and — in
+    /// API mode — fires a background pull so the local cache matches
+    /// server truth after a failed write.
+    private func handleWriteError(_ error: Error) {
+        errorMessage = error.localizedDescription
+        guard let engine = syncEngine else { return }
+        Task {
+            try? await engine.fullSync()
+            NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+        }
     }
 
     func loadAll() async {
@@ -28,7 +50,7 @@ final class RepeatingViewModel {
         do {
             items = try await repository.fetchItems()
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -55,7 +77,7 @@ final class RepeatingViewModel {
             try await repository.add(item)
             items.append(item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -63,7 +85,7 @@ final class RepeatingViewModel {
         do {
             try await repository.update(item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -73,7 +95,7 @@ final class RepeatingViewModel {
             try await repository.delete(item)
             items.removeAll { $0.id == item.id }
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 }

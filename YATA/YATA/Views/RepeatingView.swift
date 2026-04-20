@@ -15,7 +15,11 @@ struct RepeatingView: View {
         }
         .task {
             if viewModel == nil {
-                let vm = RepeatingViewModel(repository: repositoryProvider.repeatingRepository, todoRepository: repositoryProvider.todoRepository)
+                let vm = RepeatingViewModel(
+                    repository: repositoryProvider.repeatingRepository,
+                    todoRepository: repositoryProvider.todoRepository,
+                    syncEngine: repositoryProvider.syncEngine
+                )
                 viewModel = vm
                 await vm.loadAll()
             }

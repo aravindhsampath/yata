@@ -49,9 +49,29 @@ final class HomeViewModel {
         let index: Int
     }
 
-    init(repository: any TodoRepository) {
+    /// Pull-only sync coordinator. Non-nil in API mode; the VM uses it to
+    /// re-seed the local cache from server truth after a write fails.
+    /// In Local mode this stays nil and `handleWriteError` degrades to
+    /// just surfacing the error message (which is all it ever did).
+    private let syncEngine: SyncEngine?
+
+    init(repository: any TodoRepository, syncEngine: SyncEngine? = nil) {
         self.repository = repository
+        self.syncEngine = syncEngine
         refreshWeekDates()
+    }
+
+    /// Standard catch-block for write operations. Surfaces the error to the
+    /// UI and — in API mode — kicks off a background pull so the local
+    /// cache matches the server after a failed write. The pull is
+    /// intentionally fire-and-forget; we don't block the UI on it.
+    private func handleWriteError(_ error: Error) {
+        errorMessage = error.localizedDescription
+        guard let engine = syncEngine else { return }
+        Task {
+            try? await engine.fullSync()
+            NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
+        }
     }
 
     func refreshWeekDates() {
@@ -113,7 +133,7 @@ final class HomeViewModel {
             let overdueCount = allActiveItems.filter { ($0.reminderDate ?? .distantFuture) < now }.count
             try? await UNUserNotificationCenter.current().setBadgeCount(overdueCount)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -121,7 +141,7 @@ final class HomeViewModel {
         do {
             weekTaskCounts = try await repository.fetchTaskCountsByPriority(for: weekDates)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -155,7 +175,7 @@ final class HomeViewModel {
             }
             await refreshWeekTaskCounts()
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -172,7 +192,7 @@ final class HomeViewModel {
             }
             await refreshWeekTaskCounts()
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -190,7 +210,7 @@ final class HomeViewModel {
             NotificationScheduler.scheduleReminder(for: item)
             appendToPriorityArray(item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -200,7 +220,7 @@ final class HomeViewModel {
             NotificationScheduler.cancelReminder(for: item.id)
             NotificationScheduler.scheduleReminder(for: item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -211,7 +231,7 @@ final class HomeViewModel {
             removeFromPriorityArray(item)
             doneItems.removeAll { $0.id == item.id }
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -219,7 +239,7 @@ final class HomeViewModel {
         do {
             try await repository.reorder(ids: ids, in: priority)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -230,7 +250,7 @@ final class HomeViewModel {
             removeFromArray(for: sourcePriority, item: item)
             appendToArray(for: priority, item: item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -269,7 +289,7 @@ final class HomeViewModel {
                 let ids = items(for: toPriority).map(\.id)
                 try await repository.reorder(ids: ids, in: toPriority)
             } catch {
-                errorMessage = error.localizedDescription
+                handleWriteError(error)
             }
         }
 
@@ -300,7 +320,7 @@ final class HomeViewModel {
         do {
             try await repository.rolloverOverdueItems(to: .now)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -309,7 +329,7 @@ final class HomeViewModel {
         do {
             try await repository.materializeRepeatingItems(for: first...last)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -320,7 +340,7 @@ final class HomeViewModel {
             NotificationScheduler.scheduleReminder(for: item)
             removeFromPriorityArray(item)
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
@@ -342,7 +362,7 @@ final class HomeViewModel {
             removeFromPriorityArray(item)
             await refreshWeekTaskCounts()
         } catch {
-            errorMessage = error.localizedDescription
+            handleWriteError(error)
         }
     }
 
