@@ -239,4 +239,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
 extension Notification.Name {
     static let yataDataDidChange = Notification.Name("yataDataDidChange")
+    /// Posted when an API call returns 401. Listeners (ContentView) drop
+    /// the client mode and surface an alert prompting the user to log in
+    /// again from Settings.
+    static let yataSessionExpired = Notification.Name("yataSessionExpired")
 }

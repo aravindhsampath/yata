@@ -386,6 +386,165 @@ async fn rollover_only_touches_callers_rows() {
     );
 }
 
+// ─── Reorder isolation ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn user_b_reorder_does_not_touch_user_a_items() {
+    let (app, token_a, token_b) = two_tenant_app().await;
+
+    // A and B each create one item in the same lane on the same date.
+    let a_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea1";
+    let b_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeb1";
+    assert_eq!(create_item_as(&app, &token_a, a_id, "2026-04-15").await, StatusCode::CREATED);
+    assert_eq!(create_item_as(&app, &token_b, b_id, "2026-04-15").await, StatusCode::CREATED);
+
+    // User B reorders THEIR lane, accidentally including user A's id.
+    // The server must silently ignore the foreign id (WHERE user_id = ?
+    // filter), not touch A's sort_order.
+    let res = app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            "/items/reorder",
+            Some(json!({
+                "date": "2026-04-15",
+                "priority": 2,
+                "ids": [b_id, a_id],
+            })),
+            &token_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // User A's item is untouched.
+    let res = app
+        .clone()
+        .oneshot(auth_request("GET", "/items?date=2026-04-15&priority=2", None, &token_a))
+        .await
+        .unwrap();
+    let body = body_json(res).await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["sort_order"], 0, "user A's sort_order was mutated by user B's reorder");
+}
+
+// ─── Reschedule isolation ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn user_b_reschedule_on_user_a_item_returns_404() {
+    let (app, token_a, token_b) = two_tenant_app().await;
+    let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea2";
+    assert_eq!(create_item_as(&app, &token_a, id, "2026-04-15").await, StatusCode::CREATED);
+
+    let res = app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            &format!("/items/{id}/reschedule"),
+            Some(json!({ "to_date": "2026-04-30", "reset_count": true })),
+            &token_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+// ─── Repeating update isolation ───────────────────────────────────────────
+
+#[tokio::test]
+async fn user_b_cannot_update_user_a_repeating_rule() {
+    let (app, token_a, token_b) = two_tenant_app().await;
+
+    // User A creates a repeating rule.
+    let rule_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea3";
+    let res = app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            "/repeating",
+            Some(json!({
+                "id": rule_id, "title": "A's", "frequency": 0,
+                "scheduled_time": "09:00:00",
+                "scheduled_day_of_week": null, "scheduled_day_of_month": null, "scheduled_month": null,
+                "sort_order": 0, "default_urgency": 2,
+            })),
+            &token_a,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::CREATED);
+    let body = body_json(res).await;
+    let updated_at = body["updated_at"].as_str().unwrap().to_string();
+
+    // User B tries to update it.
+    let res = app
+        .clone()
+        .oneshot(auth_request(
+            "PUT",
+            &format!("/repeating/{rule_id}"),
+            Some(json!({
+                "title": "hijacked", "frequency": 0,
+                "scheduled_time": "09:00:00",
+                "scheduled_day_of_week": null, "scheduled_day_of_month": null, "scheduled_month": null,
+                "sort_order": 0, "default_urgency": 2,
+                "updated_at": updated_at,
+            })),
+            &token_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::NOT_FOUND);
+}
+
+// ─── Cross-tenant id-collision does not 500 ───────────────────────────────
+
+#[tokio::test]
+async fn user_b_cannot_create_with_user_a_item_id_and_sees_422_not_500() {
+    let (app, token_a, token_b) = two_tenant_app().await;
+    let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea4";
+
+    // User A creates the item.
+    assert_eq!(create_item_as(&app, &token_a, id, "2026-04-15").await, StatusCode::CREATED);
+
+    // User B tries to POST /items with the same id — would hit a UNIQUE
+    // constraint violation. The server must NOT return 500 (leaks that
+    // the id exists somewhere cross-tenant). Instead: 422 validation_error.
+    let res = app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            "/items",
+            Some(json!({
+                "id": id,
+                "title": "B's try",
+                "priority": 1,
+                "scheduled_date": "2026-04-15",
+                "reminder_date": null,
+                "sort_order": 0,
+                "source_repeating_id": null,
+                "source_repeating_rule_name": null,
+            })),
+            &token_b,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = body_json(res).await;
+    assert_eq!(body["error"]["code"], "validation_error");
+
+    // User A's item is unchanged.
+    let res = app
+        .clone()
+        .oneshot(auth_request("GET", "/items?date=2026-04-15&priority=2", None, &token_a))
+        .await
+        .unwrap();
+    let body = body_json(res).await;
+    let items = body["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0]["title"], "isolated");
+}
+
 // ─── Auth smoke (sanity): tokens are distinct and per-user claim works ─────
 
 #[tokio::test]

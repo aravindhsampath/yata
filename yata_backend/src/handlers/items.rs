@@ -200,18 +200,23 @@ pub async fn delete_item(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    // Atomic: row delete + deletion_log insert in one transaction so a crash
+    // between the two can't leave the row gone with no tombstone (which
+    // would silently hide the delete from clients on next /sync).
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query("DELETE FROM todo_items WHERE user_id = ? AND id = ?")
         .bind(&auth.user_id)
         .bind(&id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
     if result.rows_affected() == 0 {
         // Idempotent — 204 even if already deleted or belongs to another user.
+        tx.commit().await?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
-    // Record in deletion log for sync
     let now = Utc::now().to_rfc3339();
     sqlx::query(
         "INSERT INTO deletion_log (user_id, entity_type, entity_id, deleted_at) VALUES (?, 'todoItem', ?, ?)",
@@ -219,9 +224,10 @@ pub async fn delete_item(
     .bind(&auth.user_id)
     .bind(&id)
     .bind(&now)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -231,8 +237,12 @@ pub async fn reorder_items(
     Extension(pool): Extension<SqlitePool>,
     Json(body): Json<ReorderRequest>,
 ) -> Result<Json<ItemsResponse>, AppError> {
+    // All-or-nothing: if the client sends N ids and we crash after updating
+    // M < N, the lane ends up with duplicate sort_order values and the
+    // UI shows a jumble. One transaction keeps the lane consistent.
+    let mut tx = pool.begin().await?;
+    let now = Utc::now().to_rfc3339();
     for (index, id) in body.ids.iter().enumerate() {
-        let now = Utc::now().to_rfc3339();
         sqlx::query(
             "UPDATE todo_items SET sort_order = ?, updated_at = ? WHERE user_id = ? AND id = ? AND scheduled_date = ? AND priority = ?",
         )
@@ -242,7 +252,7 @@ pub async fn reorder_items(
         .bind(id)
         .bind(&body.date)
         .bind(body.priority)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -252,9 +262,10 @@ pub async fn reorder_items(
     .bind(&auth.user_id)
     .bind(&body.date)
     .bind(body.priority)
-    .fetch_all(&pool)
+    .fetch_all(&mut *tx)
     .await?;
 
+    tx.commit().await?;
     Ok(Json(ItemsResponse { items }))
 }
 
@@ -265,12 +276,17 @@ pub async fn move_item(
     Path(id): Path<String>,
     Json(body): Json<MoveRequest>,
 ) -> Result<Json<TodoItem>, AppError> {
+    // All three statements (select, shift, move) must be atomic — if we
+    // shift other items but crash before moving our own, the target lane
+    // has a gap at at_index and the moved item still sits where it was.
+    let mut tx = pool.begin().await?;
+
     let item = sqlx::query_as::<_, TodoItem>(
         "SELECT * FROM todo_items WHERE user_id = ? AND id = ?",
     )
     .bind(&auth.user_id)
     .bind(&id)
-    .fetch_optional(&pool)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -286,7 +302,7 @@ pub async fn move_item(
     .bind(body.to_priority)
     .bind(body.at_index)
     .bind(&id)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
     // Move the item
@@ -298,7 +314,7 @@ pub async fn move_item(
     .bind(&now)
     .bind(&auth.user_id)
     .bind(&id)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
     let updated = sqlx::query_as::<_, TodoItem>(
@@ -306,9 +322,10 @@ pub async fn move_item(
     )
     .bind(&auth.user_id)
     .bind(&id)
-    .fetch_one(&pool)
+    .fetch_one(&mut *tx)
     .await?;
 
+    tx.commit().await?;
     Ok(Json(updated))
 }
 

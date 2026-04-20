@@ -1,10 +1,16 @@
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use chrono::{Duration, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
+
+/// The one JWT algorithm we issue and accept. `Validation::default()`
+/// accepts multiple algorithms, which opens algorithm-confusion attacks
+/// (e.g. attacker-supplied `alg: none` or `alg: RS256` against an HMAC
+/// secret). Pin to HS256 here and only here.
+const JWT_ALG: Algorithm = Algorithm::HS256;
 
 /// JWT claims for a per-user session token.
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,7 +38,7 @@ pub fn create_token(
         exp: expires_at.timestamp(),
     };
     let token = encode(
-        &Header::default(),
+        &Header::new(JWT_ALG),
         &claims,
         &EncodingKey::from_secret(jwt_secret.as_bytes()),
     )?;
@@ -43,7 +49,7 @@ pub fn verify_token(token: &str, jwt_secret: &str) -> Result<Claims, AppError> {
     let data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(jwt_secret.as_bytes()),
-        &Validation::default(),
+        &Validation::new(JWT_ALG),
     )?;
     Ok(data.claims)
 }

@@ -1,21 +1,29 @@
-# YATA Client-Server Architecture Plan
+# YATA Client–Server Architecture
 
 ## The Core Idea
 
-YATA operates in two modes:
+YATA runs in one of two modes, chosen per-device in Settings:
 
-- **Local mode** — SwiftData is the database. No network. The app today.
-- **Client mode** — A Rust API on the user's VPS is the source of truth. SwiftData becomes a local cache that enables smooth, offline-capable operation.
+- **Local mode.** SwiftData is the only store. No network. This is the app's original behavior and remains the default when no server is configured.
+- **API (server) mode.** A self-hosted Rust backend is the source of truth. SwiftData becomes a read cache for the UI. Every write goes through the server on the same call stack.
 
-The user chooses their mode in Settings. The app feels identical in both — the same views, the same gestures, the same speed. The difference is invisible until you look at Settings or use a second device.
+The user toggles modes in Settings → Sync. The app looks identical in both. The only visible difference is the Sync section (and, in API mode, the user's username).
 
 ---
 
 ## Why This Architecture
 
-The API is the source of truth. Local storage is a **read cache only** — it keeps the UI fast but never speaks on its own behalf. Every user action hits the server on the same call stack; the UI update and the server write are part of one await chain. This is the **write-through with optimistic UI** pattern (Linear, Proton). Offline in client mode is a real failure state: writes surface an error; reads come from the stale cache.
+Local storage is a **cache for reads only**. It keeps the UI fast but never speaks on its own behalf. Every user action — add, edit, done, move, reorder, reschedule, delete — hits the server on the same `await` chain that the ViewModel's optimistic local write happens on. The API call is not batched, queued, or deferred.
 
-This replaced an earlier "optimistic local-first with deferred batch sync" design — that pattern created a divergence window (the interval between syncs) where local state and server state could silently disagree, and a failed push during that window silently discarded the local change. Write-through eliminates the window.
+This is the **write-through with optimistic UI** pattern (Linear, Proton Drive, Zed). The UI updates instantly, the request goes out immediately, and either the server acks (and we reconcile server-set fields back into the local cache) or it doesn't (and we surface the error — and where cheap, rollback the local change).
+
+**Offline in API mode is a real failure state.** Writes surface an error message; reads still work from the stale cache. If you need full offline operation, use Local mode.
+
+### What this replaced
+
+The original design was "optimistic local-first with a deferred batch sync." Mutations were recorded to a `PendingMutation` SwiftData log and pushed later by `SyncEngine.push()`. This opened a divergence window (the interval between syncs) where local state could silently disagree with the server, and a failed push during that window would apply `handleConflict` — which overwrote the local change with server state and deleted the mutation, silently discarding user input.
+
+Write-through eliminates the window. A successful return from a repository method means the server has acknowledged.
 
 ---
 
@@ -27,479 +35,214 @@ This replaced an earlier "optimistic local-first with deferred batch sync" desig
 User action → HomeViewModel → LocalTodoRepository → SwiftData
 ```
 
-No network. No sync. `LocalTodoRepository` is the only repository implementation in use. This is YATA 1.0 as it always was.
+No network. No sync. `LocalTodoRepository` is the only repository in use. `SyncEngine`, `APIClient`, and `CachingRepository` are never instantiated. This is YATA 1.0 behavior.
 
-### Client Mode (write-through)
+### API Mode (write-through)
 
 ```
 User action → HomeViewModel → CachingRepository
-                                    │
-                                    ├── optimistic local write (SwiftData)
-                                    ├── await api.request(…)   (server round-trip)
-                                    └── reconcile server fields (updated_at, etc.)
+                                   │
+                                   ├── optimistic local write  (LocalTodoRepository → SwiftData)
+                                   ├── await apiClient.request(…)
+                                   └── reconcile server-set fields (updated_at, completed_at)
 
-On API error:
-                                    ├── rollback local (add / move / reschedule)
-                                    │   OR: rethrow; VM triggers SyncEngine.pull()
-                                    └── error surfaces in ViewModel.errorMessage
+On API failure:
+                                   ├── rollback local state if cheap
+                                   │     (add / move / reschedule — snapshotted before mutation)
+                                   ├── else rethrow; caller triggers SyncEngine.fullSync()
+                                   │     to reseed the cache from server truth
+                                   └── error surfaces via ViewModel.errorMessage
 ```
 
-`CachingRepository` wraps `LocalTodoRepository` + `APIClient`. The ViewModel doesn't know or care which mode it's in — the `TodoRepository` protocol is the same. `SyncEngine` is pull-only — there is no per-mutation push queue; writes are server-confirmed before control returns to the VM.
+The ViewModel doesn't know which mode it's in — the `TodoRepository` / `RepeatingRepository` protocols are the same. Mode switching is a repository swap in `RepositoryProvider`.
 
 ---
 
 ## Architecture Components
 
-### Repository Layer
+### Repository layer
 
 ```
-TodoRepository (protocol — unchanged)
-    ├── LocalTodoRepository    (existing — SwiftData only)
-    └── CachingRepository      (new — wraps LocalTodoRepository + SyncEngine)
+TodoRepository       (protocol — unchanged across modes)
+RepeatingRepository  (protocol — unchanged across modes)
+    ├── LocalTodoRepository + LocalRepeatingRepository   (SwiftData only)
+    └── CachingRepository                                 (API mode — implements both)
 ```
 
-`CachingRepository` implements `TodoRepository` by:
-1. Delegating to `LocalTodoRepository` for immediate execution (the user sees results instantly)
-2. Recording the mutation in a `PendingMutation` log
-3. Asking `SyncEngine` to flush the log to the API
+`CachingRepository` composes a `LocalTodoRepository` + `LocalRepeatingRepository` + an `APIClient`. On every write it does the four steps above; on every read it delegates straight to the local repo (no network call on the read path).
 
-The ViewModel calls the same protocol methods regardless of mode. Mode switching is a repository swap at the app level.
+### SyncEngine (pull-only)
 
-### SyncEngine
+`SyncEngine` no longer pushes anything. Its only job in write-through mode is pulling the server's delta so the local cache picks up changes made on **other** devices or by server-side operations (materialization, rollover).
 
-The `SyncEngine` is the only component that talks to the network. It has three jobs:
+Triggers:
 
-1. **Push** — Replay pending mutations to the API
-2. **Pull** — Delta sync via `GET /sync?since=<timestamp>`
-3. **Reconcile** — Apply server state to local cache, resolve conflicts
+| Trigger | Method |
+|---|---|
+| Scene becomes `.active` | `syncIfStale(minInterval: 30)` |
+| Network reconnect | `syncIfStale(minInterval: 30)` |
+| `BGAppRefreshTask` fires | `syncIfStale(minInterval: 30)` |
+| User taps "Sync now" | `fullSync()` directly |
+| User taps "Disconnect" | `fullSync()` best-effort before teardown |
+| A write fails in a ViewModel | `fullSync()` from `handleWriteError()` |
 
-```
-SyncEngine
-    ├── push()       — flush PendingMutation log to API
-    ├── pull()       — delta sync, apply server changes to SwiftData
-    ├── fullSync()   — push then pull (called on app foreground, connectivity restore)
-    └── observe()    — watch for connectivity changes, trigger sync
-```
-
-### PendingMutation Log
-
-A SwiftData model that persists unsent mutations:
-
-```
-@Model PendingMutation
-    id: UUID
-    createdAt: Date
-    entityType: String        // "todoItem" or "repeatingItem"
-    entityID: UUID
-    mutationType: String      // "create", "update", "delete", "reorder", "move", "done", "undone", "reschedule", "rollover", "materialize"
-    payload: Data             // JSON of the request body
-    retryCount: Int
-    lastError: String?
-```
-
-Mutations are recorded in order and replayed in order. This guarantees causal consistency — if you create an item then mark it done, the server sees both operations in the right sequence.
+`syncIfStale` coalesces the first three triggers (which can overlap on flaky networks). User intent (sync now, disconnect) is never coalesced.
 
 ### APIClient
 
-A thin HTTP client. No business logic — just request/response.
-
-```
-APIClient
-    ├── Configuration: serverURL, token (stored in Keychain)
-    ├── request<T: Decodable>(_ endpoint: Endpoint) async throws -> T
-    └── Handles: auth headers, JSON encoding/decoding, error mapping
-```
+Thin HTTP client. Bearer-token authenticated (token in the Keychain). Methods: `request<T>(_ endpoint)`, `requestNoContent(_ endpoint)`, and two pre-auth statics (`checkHealth`, `authenticate`). Emits typed `APIError` cases (`unauthorized`, `notFound`, `conflict`, `validationError`, `serverError`, `networkError`, `invalidURL`, `decodingError`). Everything else in the app handles network I/O through this one type.
 
 ---
 
-## Sync Strategy: The Full Picture
+## Sync Flow
 
-### When Does Sync Happen?
-
-| Trigger | Action |
-|---------|--------|
-| App becomes active (foreground) | `fullSync()` — push then pull |
-| After any local mutation (client mode) | `push()` — immediate attempt, queues on failure |
-| Network connectivity restored | `fullSync()` |
-| User pulls-to-refresh | `fullSync()` |
-| Manual "Sync Now" in Settings | `fullSync()` |
-| Periodic background (optional, iOS BGTaskScheduler) | `fullSync()` |
-
-### Push: Sending Local Changes to Server
+### Writes (API mode)
 
 ```
-for each PendingMutation (ordered by createdAt):
-    1. Build the API request from mutation payload
-    2. Send to server
-    3. On success:
-       - Update local entity's `updated_at` with server's response
-       - Delete the PendingMutation
-    4. On 409 (conflict):
-       - Server returns its current version in `server_version`
-       - Overwrite local entity with server version
-       - Delete the PendingMutation (server wins)
-       - Log the conflict for debugging
-    5. On 404:
-       - Entity was deleted on server
-       - Delete local entity
-       - Delete the PendingMutation
-    6. On network error:
-       - Increment retryCount
-       - Stop processing (preserve ordering)
-       - Schedule retry with exponential backoff
-    7. On 401:
-       - Stop all sync
-       - Surface "re-authenticate" prompt in UI
+1. ViewModel optimistically mutates the item in place (e.g. item.isDone = true)
+2. ViewModel calls `try await repository.update(item)`
+3. CachingRepository.update:
+   a. try local.update(item)               — save locally so the UI is persistent
+   b. try await apiClient.request(PUT …)   — same call stack
+   c. reconcile server fields back into item
+4. On thrown error:
+   - update / reorder            : rethrow; VM's catch triggers pull
+   - add                          : try? local.delete(item); rethrow
+   - move                         : try? local.move(item, to: oldPriority); rethrow
+   - reschedule                   : restore oldDate + oldCount; rethrow
+   - delete                       : nothing to rollback; rethrow
 ```
 
-**Ordering matters.** If mutation #3 depends on mutation #2 (e.g., create then update), they must be sent in order. On failure, stop the queue — don't skip ahead.
+There is **no mutation log** and **no push**. Each write lives entirely within the method that triggered it.
 
-**Compaction.** Before pushing, compact the queue:
-- Multiple updates to the same entity → keep only the latest
-- Create followed by delete of the same entity → remove both
-- Create followed by updates → merge into a single create with final state
-
-This reduces network round-trips and avoids sending stale intermediate states.
-
-### Pull: Receiving Server Changes
+### Pull (API mode only)
 
 ```
-1. GET /sync?since=<lastSyncTimestamp>
-2. For each upserted item:
-   - If local entity exists:
-     - If local entity has a PendingMutation → skip (push will handle it)
-     - Else → overwrite local with server version
-   - If local entity doesn't exist → insert
-3. For each deleted ID:
-   - Remove local entity
-   - Remove any PendingMutation for this entity
-4. Update lastSyncTimestamp to server's `server_time`
+1. GET /sync?since=<yata_lastSyncTimestamp>
+2. For each upserted TodoItem / RepeatingItem:
+     - if an item with that id exists locally → overwrite fields from server
+     - else → insert
+3. For each deleted id: if present locally, delete
+4. Save the ModelContext
+5. UserDefaults.yata_lastSyncTimestamp = response.server_time
 ```
 
-**Critical rule:** Never overwrite a local entity that has pending mutations. The push phase handles those — pulling server state on top of unsent local changes would lose the user's work.
-
-### Full Sync Flow
-
-```
-fullSync():
-    1. push()        — send all pending mutations
-    2. pull()        — fetch server changes since last sync
-    3. Notify UI     — post .yataDataDidChange so HomeViewModel reloads
-```
-
-This order matters: push first, then pull. If we pulled first, we might overwrite local changes that haven't been sent yet.
+Note: pull does **not** guard against "local pending mutations" like the old design did — in write-through mode the cache has no unacked local writes to protect. If anything is pending server-side, it's because a previous write failed; the VM already has the error surfaced.
 
 ---
 
-## Conflict Resolution
+## Conflict Semantics
 
-### Philosophy
+Server is authoritative. When a client update is pushed with a stale `updated_at`, the server's handler parses both timestamps with `chrono::DateTime::parse_from_rfc3339` (`yata_backend/src/time.rs`) and returns 409 if its version is strictly newer. The iOS client receives the 409 and rethrows — the ViewModel's `handleWriteError` fires a pull which replaces the local copy with server truth.
 
-YATA is a personal todo app. One user, typically one active device. Conflicts happen when:
-- The user edits on their phone, then edits on their iPad before the phone syncs
-- The server runs a rollover/materialization while the app is making changes
+There is no field-level merge. For a personal todo app with one user on ~two devices, LWW at the entity level is predictable and sufficient.
 
-These are rare. When they happen, **the server wins**. The user's most recent action (on whichever device synced last) is preserved. The overwritten change is lost — and for a todo app, this is acceptable. Nobody needs a three-way merge for "Call roof guy" vs "Call Stefan about roof."
-
-### Conflict Detection
-
-Every entity carries `updated_at`, set by the server on every mutation.
-
-When the client pushes an update, it includes its local `updated_at`. The server compares:
-
-```
-if server.updated_at > client.updated_at:
-    return 409 Conflict { server_version: current state }
-else:
-    apply update, set new updated_at = now()
-    return 200 { updated entity }
-```
-
-### Conflict Scenarios
-
-| Scenario | Detection | Resolution |
-|----------|-----------|------------|
-| Same item edited on two devices | 409 on second device's push | Server version wins. Second device overwrites local. |
-| Item deleted on server, edited on client | 404 on push | Delete local copy. Mutation discarded. |
-| Item edited on client, deleted on server via rollover | Pull shows item in `deleted` list | If pending mutation exists, push first (will get 404), then delete local. |
-| Reorder on client, reorder on server | Push succeeds if sort_order update; 409 if other fields conflict | Server version wins for conflicts; reorder replays with current server state. |
-| Repeating rule deleted on server while client has it | Pull shows rule in `deleted` list | Delete local rule and all undone occurrences. |
-
-### What About Merge?
-
-No merging. Merging implies combining two versions of an entity, which requires field-level diffing and creates surprising results. ("Why did my title change but my priority stayed?") For a personal app, LWW (last-write-wins) at the entity level is simpler, predictable, and sufficient.
-
-If a conflict occurs on a meaningful change (e.g., the user notices their edit was lost), they simply re-edit. The cost of re-typing a todo title is near zero.
+**Historical note:** an earlier version of the client formatted `updated_at` as `"yyyy-MM-dd"` (date only), which compared lexically-less than every RFC3339 timestamp on the server and triggered a false 409 on every update. Fixed by switching the client to ISO8601 **and** by making the server compare as `DateTime` values. Either fix alone would have closed the bug.
 
 ---
 
 ## Offline Behavior
 
-### The User Experience
+### Local mode
+Everything works offline. No-op change.
 
-The app works identically offline. No spinners. No "you're offline" banners. No disabled buttons.
+### API mode
+- **Reads**: served from the SwiftData cache, which is whatever the last pull populated. Stale but functional.
+- **Writes**: throw `APIError.networkError`. The ViewModel surfaces a message; if the mutation is on a type that supports rollback (add/move/reschedule), the local state is restored.
+- **Sync triggers while offline**: `SyncEngine.fullSync()` throws `SyncError.networkUnavailable`; backoff increments. On network reconnect, `NetworkMonitor` fires `syncIfStale()` which clears the backoff and pulls.
 
-The only visible indicator: a subtle sync status icon in Settings showing "Last synced: 2 min ago" or "Pending: 3 changes." The user can ignore this entirely.
-
-### What Happens When Offline
-
-1. User creates/edits/deletes items → applied to SwiftData immediately
-2. Each mutation is recorded in PendingMutation log
-3. `SyncEngine.push()` fails silently (network error) → mutation stays queued
-4. User continues working normally
-
-### What Happens When Back Online
-
-1. `SyncEngine` detects connectivity (NWPathMonitor)
-2. `fullSync()` runs: push all pending mutations, then pull server changes
-3. If any conflicts: server wins, local overwritten
-4. UI refreshes via `.yataDataDidChange` notification
-
-### Extended Offline (days/weeks)
-
-If the user is offline for a long time:
-- The PendingMutation log grows but stays ordered
-- On reconnect, queue compaction runs first (dedup/collapse)
-- Push replays all mutations — some may get 404/409 (entities changed/deleted on server)
-- Each failure is handled individually (conflict resolution above)
-- After push, delta pull catches up on everything the server did
-- Worst case: a few user edits are silently overridden by server state
-
-The server's deletion log must retain entries for at least 30 days. Clients offline longer than that should do a full sync (re-download everything) rather than a delta.
+There is no banner, no blocking spinner. The user sees the cache; if they write, they see the error inline. If truly offline operation is needed for the whole app, Local mode is the answer.
 
 ---
 
 ## Server-Side Responsibilities
 
-These operations run on the server because they involve cross-item logic that shouldn't be duplicated in the client:
+These stay server-side because they involve cross-entity logic that is unsafe to duplicate across clients:
 
 | Operation | Why server-side |
-|-----------|----------------|
-| **Materialization** | Must be atomic and deduplicated. Two clients materializing the same date range could create duplicates. |
-| **Rollover** | Cross-date operation that must see the full picture. Running on two clients simultaneously could double-increment reschedule counts. |
-| **Cascading deletes** | Deleting a repeating rule must delete all undone occurrences atomically. |
-| **Sort order integrity** | Reorder operations set sort_order across all items in a lane. Must be serialized. |
-| **Conflict resolution** | Server is the authority — it decides who wins. |
-| **Deletion log** | Server maintains soft deletes or a deletion log for delta sync. |
+|---|---|
+| Materialization | Dedups `(source_repeating_id, scheduled_date)` so two clients triggering it can't double-create occurrences. |
+| Rollover | Bulk `scheduled_date` + `reschedule_count` update across all overdue items for that user. |
+| Cascading delete | `DELETE /repeating/:id` wipes undone child `todo_items`. |
+| Reorder integrity | The server rewrites `sort_order` for all ids in a lane atomically. |
+| Deletion log | So that pull can distinguish "never existed here" from "deleted since last pull." |
 
-### What the Client Triggers
+### What the client triggers
 
-The client still *triggers* materialization and rollover — the same way it does today. But in client mode, instead of executing the logic locally, it sends `POST /operations/materialize` or `POST /operations/rollover` to the server. The server executes, the client pulls the results.
-
-```
-// Local mode (today)
-await repository.materializeRepeatingItems(for: dateRange)
-
-// Client mode (CachingRepository delegates to API)
-POST /operations/materialize { start_date, end_date }
-// Then pull to get the created items
-GET /sync?since=<lastSync>
-```
+iOS `CachingRepository` still exposes `rolloverOverdueItems(to:)` and `materializeRepeatingItems(for:)` via the same protocol `LocalTodoRepository` does. In API mode those methods mutate locally first then call `POST /operations/rollover` / `POST /operations/materialize`. The server performs the real work; iOS's local-first pass is just to make the UI feel instant — a pull on next trigger reconciles.
 
 ---
 
 ## Client-Side Responsibilities
 
 | Responsibility | Why client-side |
-|----------------|----------------|
-| **Optimistic UI** | User must see results immediately — can't wait for server round-trip |
-| **Local cache** | SwiftData stores everything for offline access and instant reads |
-| **Mutation queue** | Pending changes must survive app termination |
-| **Local notifications** | UNUserNotificationCenter is device-local — server can't schedule these |
-| **Notification scheduling** | Remains entirely client-side (Phase 1 foundation already built) |
-| **Badge management** | Device-local concern |
-| **Permission management** | iOS notification permissions are per-device |
+|---|---|
+| Optimistic UI | User sees results before any round-trip completes. |
+| Read cache | SwiftData backs every read in both modes. |
+| Local notifications | `UNUserNotificationCenter` is device-only; server never schedules. |
+| Badge | Device-local. |
+| Permission state | Per-device. |
 
 ---
 
-## Migration Between Modes
+## Mode Transitions
 
-### Local → Client (First-time setup)
+### Local → API (first connect)
 
-```
-1. User enters server URL in Settings
-2. App checks GET /health — verify server is reachable
-3. User enters secret → POST /auth/token — get bearer token
-4. Token stored in Keychain
-5. Initial sync:
-   a. Push all local TodoItems to server (POST /items for each)
-   b. Push all local RepeatingItems to server (POST /repeating for each)
-   c. Server responds with server-set fields (updated_at, created_at)
-   d. Update local entities with server-set fields
-   e. Set lastSyncTimestamp = server_time from final response
-6. Mode switched to "client" in @AppStorage
-7. CachingRepository becomes active
-```
+1. User taps "Connect to server…" in Settings → sheet opens.
+2. User enters URL + username + password → taps Connect.
+3. Sheet runs `GET /health`, then `POST /auth/token` → token stored in Keychain, username in Keychain, URL in Keychain.
+4. `RepositoryProvider.switchToClient` rebuilds the repository stack (`CachingRepository` now active).
+5. The sheet runs a one-time backfill: iterates existing local `TodoItem`s and `RepeatingItem`s and POSTs them to the server. The server does upsert-by-id so repeated connects are idempotent.
+6. `SyncEngine.fullSync()` runs to set `yata_lastSyncTimestamp` and catch up any server-side state.
+7. Sheet dismisses. Settings now shows the connected account.
 
-**Edge case:** If the server already has data (e.g., user previously used client mode on another device), the initial sync must handle duplicates. Strategy: client sends items with their existing UUIDs. Server does upsert — if UUID exists, update; if not, create.
+### API → Local (disconnect)
 
-### Client → Local (Disconnect)
+1. User taps Disconnect in Settings → native confirmation alert.
+2. On confirm: `serverMode = "local"` flips immediately (UI updates).
+3. Background: `RepositoryProvider.disconnect()` runs a best-effort pull, then clears Keychain + `yata_lastSyncTimestamp`, switches back to plain `LocalTodoRepository`.
 
-```
-1. Pull latest from server (ensure cache is current)
-2. Clear PendingMutation log
-3. Clear server URL and token from Keychain
-4. Mode switched to "local" in @AppStorage
-5. LocalTodoRepository becomes active
-6. All data remains in SwiftData — user loses nothing
-```
-
-### Server Wipe / Fresh Start
-
-If the user wipes their server and reconnects:
-- Initial sync pushes all local data to the empty server
-- No conflicts — server has nothing to conflict with
+The SwiftData cache is left in place — nothing gets wiped. The user keeps all their tasks; they just stop syncing.
 
 ---
 
-## Settings UI for Client Mode
+## Settings UI
+
+Current layout:
 
 ```
-Server
-  ├── Mode: [Local | Client]
+Sync
+  ├─ (if not connected) "Connect to server…" button
+  │                     footer: "Local mode: tasks live only on this device…"
   │
-  │   (When Client is selected:)
-  ├── Server URL: [https://yata.example.com]
-  ├── Status: Connected ✓ / Unreachable ✗ / Authenticating...
-  ├── Last synced: 2 min ago
-  ├── Pending changes: 0
-  ├── [Sync Now]
-  └── [Disconnect] — reverts to local mode
+  └─ (if connected)
+       Server               yata.example.com
+       Signed in as         alice
+       Last sync            …
+       Retry/halted row     (only when SyncEngine is retrying or halted)
+       Sync now             (Button)
+       Disconnect           (Button, destructive, with confirm alert)
+
+Appearance
+  └─ Color scheme picker
+
+Recently Done
+  └─ Show last (10 / 25 / 50 / 100)
+
+About
+  └─ Version
 ```
 
-**Connection test flow:**
-1. User types URL → app pings `GET /health` on debounce
-2. Green check if reachable, red X if not
-3. On first connection: prompt for secret
-4. After auth: initial sync begins with progress indicator
+The "Connect to server…" button presents a modal `ServerConnectSheet` with URL / username / password fields, a nav-bar Cancel + Connect, password visibility toggle, focus chain (`next → next → go`), and inline error text for bad URL / unreachable / wrong credentials.
 
 ---
 
-## UX Flows
+## What This Document Does NOT Cover
 
-### Normal Operation (Online, Client Mode)
-
-```
-User taps item to mark done
-  → CachingRepository.markDone(item)
-      → LocalTodoRepository.markDone(item)    [instant — UI updates]
-      → PendingMutation(type: "done", id: item.id) recorded
-      → SyncEngine.push()                     [background]
-          → POST /items/{id}/done
-          → Success → delete PendingMutation, update local updated_at
-```
-
-User sees the item disappear from active list and appear in done list instantly. The server learns about it milliseconds later.
-
-### Offline Mutation
-
-```
-User creates an item (airplane mode)
-  → CachingRepository.add(item)
-      → LocalTodoRepository.add(item)         [instant — item appears]
-      → PendingMutation(type: "create") recorded
-      → SyncEngine.push()                     [fails — no network]
-          → Mutation stays queued
-
-... user turns off airplane mode ...
-
-  → NWPathMonitor detects connectivity
-  → SyncEngine.fullSync()
-      → push: POST /items with queued item → success
-      → pull: GET /sync?since=... → apply any server changes
-```
-
-### Conflict Recovery
-
-```
-Device A: rename "Call roof guy" → "Call Stefan about roof"
-  → pushes to server → server updated_at = T1
-
-Device B (stale cache): change priority of "Call roof guy" to Low
-  → pushes to server with updated_at = T0
-  → Server: T0 < T1 → 409 Conflict, returns version with title="Call Stefan about roof", priority=High
-  → Device B: overwrites local with server version
-  → Device B now shows "Call Stefan about roof" at High priority
-  → The priority change from Device B is lost
-```
-
-This is correct behavior. The most recent edit (Device A's rename) is preserved. Device B's stale edit is discarded. If the user wanted both changes, they re-edit on Device B.
-
-### App Launch (Client Mode)
-
-```
-App launches
-  → HomeViewModel.loadAll()
-      → CachingRepository.loadAll()
-          → LocalTodoRepository returns cached data [instant — UI populated]
-      → SyncEngine.fullSync() [background]
-          → push pending mutations
-          → pull server changes
-          → if changes found → .yataDataDidChange notification
-          → HomeViewModel.loadAll() again [UI updates silently]
-```
-
-The user sees their cached data immediately. If the server has changes (from another device, from rollover, from materialization), the UI updates within seconds. No loading spinner.
-
----
-
-## Edge Cases
-
-| Scenario | Handling |
-|----------|---------|
-| Server unreachable for weeks | App works in local mode with growing mutation queue. On reconnect: compact + push + pull. |
-| Token expires mid-session | 401 on next push → surface re-auth prompt. Mutations stay queued. |
-| Server clock skew | `updated_at` is server-authoritative. Client never sets it. Server uses UTC. |
-| Client creates item, then deletes before push | Queue compaction: create + delete cancel out. Nothing sent to server. |
-| Duplicate UUID on initial sync | Server does upsert by UUID. If UUID exists, treats as update. |
-| App terminated with pending mutations | PendingMutation is a SwiftData @Model — survives app termination. Replayed on next launch. |
-| Very large mutation queue (1000+) | Compaction reduces to essential mutations. Push in batches of 50. |
-| Server returns 500 | Retry with exponential backoff (1s, 2s, 4s, 8s, max 60s). After 10 failures: stop auto-sync, surface error in Settings. |
-| User changes server URL | Equivalent to disconnect + reconnect. Clears mutation log, does fresh initial sync. |
-| Materialization race (two devices trigger simultaneously) | Server deduplicates by (source_repeating_id, scheduled_date). Second request is a no-op. |
-
----
-
-## Implementation Phases
-
-### Phase A: API Client + CachingRepository (Foundation)
-
-- `APIClient` — HTTP layer with auth, error handling, retry
-- `CachingRepository` — wraps `LocalTodoRepository`, records `PendingMutation`
-- `PendingMutation` SwiftData model
-- `SyncEngine` — push/pull/fullSync with queue compaction
-- Settings UI — mode toggle, server URL, auth flow, sync status
-- Mode switching in `YATAApp` (swap repository implementation)
-
-### Phase B: Robust Sync
-
-- `NWPathMonitor` integration — auto-sync on connectivity change
-- Exponential backoff on failures
-- Conflict resolution with server-wins policy
-- Deletion log handling in delta sync
-- Background sync via `BGTaskScheduler`
-
-### Phase C: Migration
-
-- Local → Client initial sync with progress UI
-- Client → Local disconnect flow
-- Handle server wipe / fresh start scenario
-
-### Phase D: Rust API Server
-
-- Actix-web or Axum server implementing the API spec
-- PostgreSQL or SQLite backend
-- Token auth middleware
-- Materialization and rollover as server-side operations
-- Soft delete / deletion log for sync
-- Docker image for easy self-hosting
-
----
-
-## What This Plan Does NOT Cover
-
-- **Multi-user / sharing** — YATA is personal. One user per server instance.
-- **Real-time push (WebSocket/SSE)** — Polling + pull-on-foreground is sufficient for a single user. Add later if multi-device responsiveness becomes a problem.
-- **End-to-end encryption** — The user owns the server. HTTPS is sufficient. If they want E2EE, that's a separate concern.
-- **Server-side notifications (APNs)** — Phase 1 notifications are local. Server-triggered push notifications are a future enhancement.
-- **Attachments / file sync** — Todo items are text. No binary data sync.
+- **Multi-tenancy on the server.** Covered in [`API_spec.md`](API_spec.md). The server hashes passwords with Argon2id, scopes every query by `user_id`, provisions accounts via CLI (`yata_backend create-user`).
+- **The Rust backend's internals.** Axum + sqlx + SQLite. See [`../../yata_backend/`](../../yata_backend/) and its `README.md` for deploy instructions.
+- **The `yata` CLI.** See [`../../yata_cli/README.md`](../../yata_cli/README.md). Uses the same REST API as iOS.
+- **End-to-end encryption.** Out of scope — the user controls the server; HTTPS is sufficient.
+- **Real-time server push (SSE / WebSocket).** Pull-on-foreground is sufficient for a single-user two-device workflow. Worth revisiting if a third device joins and inter-device latency becomes painful.
+- **Shared or multi-user accounts.** Each YATA account is a solo todo list. Sharing a list with someone else is not in scope.

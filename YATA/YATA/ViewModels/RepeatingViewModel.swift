@@ -34,8 +34,15 @@ final class RepeatingViewModel {
 
     /// Standard catch-block helper. Surfaces the error to the UI and — in
     /// API mode — fires a background pull so the local cache matches
-    /// server truth after a failed write.
+    /// server truth after a failed write. On 401 posts `.yataSessionExpired`
+    /// instead (pulling would also 401); ContentView handles the re-login
+    /// prompt.
     private func handleWriteError(_ error: Error) {
+        if case APIError.unauthorized = error {
+            errorMessage = "Session expired. Please sign in again."
+            NotificationCenter.default.post(name: .yataSessionExpired, object: nil)
+            return
+        }
         errorMessage = error.localizedDescription
         guard let engine = syncEngine else { return }
         Task {

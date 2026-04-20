@@ -18,6 +18,10 @@ enum Command {
     CreateUser {
         /// Unique username.
         username: String,
+        /// Read the password from stdin (one line) instead of prompting on
+        /// the TTY. Intended for scripted/containerized provisioning.
+        #[arg(long)]
+        password_stdin: bool,
     },
     /// List all users.
     ListUsers,
@@ -30,6 +34,9 @@ enum Command {
     ResetPassword {
         /// Username to update.
         username: String,
+        /// Read the new password from stdin (one line) instead of prompting.
+        #[arg(long)]
+        password_stdin: bool,
     },
 }
 
@@ -45,10 +52,14 @@ async fn main() {
 
     match cli.command {
         None => run_server(pool, config).await,
-        Some(Command::CreateUser { username }) => cmd_create_user(&pool, &username).await,
+        Some(Command::CreateUser { username, password_stdin }) => {
+            cmd_create_user(&pool, &username, password_stdin).await
+        }
         Some(Command::ListUsers) => cmd_list_users(&pool).await,
         Some(Command::DeleteUser { username }) => cmd_delete_user(&pool, &username).await,
-        Some(Command::ResetPassword { username }) => cmd_reset_password(&pool, &username).await,
+        Some(Command::ResetPassword { username, password_stdin }) => {
+            cmd_reset_password(&pool, &username, password_stdin).await
+        }
     }
 }
 
@@ -73,7 +84,7 @@ async fn run_server(pool: SqlitePool, config: Config) {
     axum::serve(listener, app).await.expect("server error");
 }
 
-async fn cmd_create_user(pool: &SqlitePool, username: &str) {
+async fn cmd_create_user(pool: &SqlitePool, username: &str, password_stdin: bool) {
     if username.trim().is_empty() {
         eprintln!("error: username must not be empty");
         std::process::exit(1);
@@ -93,7 +104,7 @@ async fn cmd_create_user(pool: &SqlitePool, username: &str) {
         std::process::exit(1);
     }
 
-    let password = prompt_password_twice();
+    let password = read_password(password_stdin);
     let hash = hash_password(&password).unwrap_or_else(|e| {
         eprintln!("error: password hash failed: {e:?}");
         std::process::exit(1);
@@ -153,7 +164,7 @@ async fn cmd_delete_user(pool: &SqlitePool, username: &str) {
     println!("deleted user: {username} (cascade removed all linked items)");
 }
 
-async fn cmd_reset_password(pool: &SqlitePool, username: &str) {
+async fn cmd_reset_password(pool: &SqlitePool, username: &str, password_stdin: bool) {
     let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM users WHERE username = ?")
         .bind(username)
         .fetch_optional(pool)
@@ -167,7 +178,7 @@ async fn cmd_reset_password(pool: &SqlitePool, username: &str) {
         std::process::exit(1);
     }
 
-    let password = prompt_password_twice();
+    let password = read_password(password_stdin);
     let hash = hash_password(&password).unwrap_or_else(|e| {
         eprintln!("error: password hash failed: {e:?}");
         std::process::exit(1);
@@ -186,22 +197,40 @@ async fn cmd_reset_password(pool: &SqlitePool, username: &str) {
     println!("password updated for user: {username}");
 }
 
-fn prompt_password_twice() -> String {
-    let password = rpassword::prompt_password("Password: ").unwrap_or_else(|e| {
-        eprintln!("error: password read failed: {e}");
-        std::process::exit(1);
-    });
-    if password.len() < 8 {
-        eprintln!("error: password must be at least 8 characters");
-        std::process::exit(1);
+/// Read a password. With `stdin=true`, reads one trimmed line from stdin —
+/// no TTY required. Otherwise prompts twice on the TTY (with confirmation).
+/// Both paths enforce the 8-character minimum.
+fn read_password(stdin: bool) -> String {
+    if stdin {
+        use std::io::BufRead;
+        let mut line = String::new();
+        std::io::stdin().lock().read_line(&mut line).unwrap_or_else(|e| {
+            eprintln!("error: stdin read failed: {e}");
+            std::process::exit(1);
+        });
+        let trimmed = line.trim_end_matches('\n').trim_end_matches('\r').to_string();
+        if trimmed.len() < 8 {
+            eprintln!("error: password must be at least 8 characters");
+            std::process::exit(1);
+        }
+        trimmed
+    } else {
+        let password = rpassword::prompt_password("Password: ").unwrap_or_else(|e| {
+            eprintln!("error: password read failed: {e}");
+            std::process::exit(1);
+        });
+        if password.len() < 8 {
+            eprintln!("error: password must be at least 8 characters");
+            std::process::exit(1);
+        }
+        let confirm = rpassword::prompt_password("Confirm:  ").unwrap_or_else(|e| {
+            eprintln!("error: password read failed: {e}");
+            std::process::exit(1);
+        });
+        if password != confirm {
+            eprintln!("error: passwords do not match");
+            std::process::exit(1);
+        }
+        password
     }
-    let confirm = rpassword::prompt_password("Confirm:  ").unwrap_or_else(|e| {
-        eprintln!("error: password read failed: {e}");
-        std::process::exit(1);
-    });
-    if password != confirm {
-        eprintln!("error: passwords do not match");
-        std::process::exit(1);
-    }
-    password
 }

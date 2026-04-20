@@ -44,6 +44,13 @@ final class HomeViewModel {
     // full-sweep IPC when the set of (id, reminderDate) pairs is unchanged.
     private var lastReminderSyncKey: Int = 0
 
+    /// Ids of items whose toggle (done/undone/delete) mutation is currently
+    /// mid-flight. Guards against rapid double-taps queuing two interleaved
+    /// mutations against the same row — in write-through mode that would
+    /// race two API round-trips and leave reconcile() applying whichever
+    /// response landed last, possibly clobbering the user's final intent.
+    private var mutationsInFlight: Set<UUID> = []
+
     struct DropTarget: Equatable {
         let priority: Priority
         let index: Int
@@ -65,7 +72,17 @@ final class HomeViewModel {
     /// UI and — in API mode — kicks off a background pull so the local
     /// cache matches the server after a failed write. The pull is
     /// intentionally fire-and-forget; we don't block the UI on it.
+    ///
+    /// Special case: on `APIError.unauthorized` (401) we post
+    /// `.yataSessionExpired` instead of pulling. A pull would also 401 and
+    /// achieve nothing; the listener (`ContentView`) drops client mode
+    /// and prompts the user to re-login from Settings.
     private func handleWriteError(_ error: Error) {
+        if case APIError.unauthorized = error {
+            errorMessage = "Session expired. Please sign in again."
+            NotificationCenter.default.post(name: .yataSessionExpired, object: nil)
+            return
+        }
         errorMessage = error.localizedDescription
         guard let engine = syncEngine else { return }
         Task {
@@ -160,6 +177,12 @@ final class HomeViewModel {
     }
 
     func markDone(_ item: TodoItem) async {
+        // Rapid-double-tap guard: if a toggle on this item is already
+        // in flight, ignore the second tap. Prevents two interleaved
+        // PUT /items/:id calls whose responses could land out-of-order.
+        guard mutationsInFlight.insert(item.id).inserted else { return }
+        defer { mutationsInFlight.remove(item.id) }
+
         item.isDone = true
         item.completedAt = .now
         do {
@@ -180,6 +203,9 @@ final class HomeViewModel {
     }
 
     func markUndone(_ item: TodoItem) async {
+        guard mutationsInFlight.insert(item.id).inserted else { return }
+        defer { mutationsInFlight.remove(item.id) }
+
         item.isDone = false
         item.completedAt = nil
         item.scheduledDate = selectedDate

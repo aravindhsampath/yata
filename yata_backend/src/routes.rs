@@ -1,6 +1,7 @@
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Router};
 use sqlx::SqlitePool;
+use tower_http::trace::TraceLayer;
 
 use crate::config::Config;
 use crate::handlers;
@@ -59,4 +60,8 @@ pub fn build_router(pool: SqlitePool, config: Config) -> Router {
         .layer(Extension(pool))
         .layer(Extension(config))
         .layer(Extension(jwt_secret))
+        // Access logs. Emits a span per request at DEBUG and a summary at
+        // INFO on completion — visible via `RUST_LOG=tower_http=info` in
+        // the systemd unit's EnvironmentFile.
+        .layer(TraceLayer::new_for_http())
 }

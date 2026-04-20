@@ -401,7 +401,10 @@ struct ServerConnectSheet: View {
                     title: item.title,
                     priority: item.priorityRawValue,
                     scheduledDate: dateFormatter.string(from: item.scheduledDate),
-                    reminderDate: item.reminderDate.map { dateFormatter.string(from: $0) },
+                    // reminder_date is a timestamp, not a date. Must match
+                    // the ISO8601 format used everywhere else or the server
+                    // rejects it with a validation error.
+                    reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
                     sortOrder: item.sortOrder,
                     sourceRepeatingId: item.sourceRepeatingID,
                     sourceRepeatingRuleName: item.sourceRepeatingRuleName

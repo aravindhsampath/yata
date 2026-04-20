@@ -13,7 +13,7 @@ final class EndpointTests: XCTestCase {
     }
 
     func testAuthToken() throws {
-        let endpoint = Endpoint.authToken(secret: "my-secret")
+        let endpoint = Endpoint.authToken(username: "alice", password: "hunter2")
         XCTAssertEqual(endpoint.path, "/auth/token")
         XCTAssertEqual(endpoint.method, "POST")
         XCTAssertNil(endpoint.queryItems)
@@ -23,7 +23,8 @@ final class EndpointTests: XCTestCase {
         let data = try endpoint.bodyData(encoder: encoder)
         XCTAssertNotNil(data)
         let json = try JSONSerialization.jsonObject(with: data!) as! [String: Any]
-        XCTAssertEqual(json["secret"] as? String, "my-secret")
+        XCTAssertEqual(json["username"] as? String, "alice")
+        XCTAssertEqual(json["password"] as? String, "hunter2")
     }
 
     // MARK: - Todo Items

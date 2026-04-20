@@ -135,13 +135,19 @@ pub async fn delete_repeating(
     Extension(pool): Extension<SqlitePool>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, AppError> {
+    // All the cascade work must be atomic — the worst state is "rule gone,
+    // occurrences still exist" (orphan rows) or "rule gone, occurrences
+    // gone, tombstones partially written" (clients resurrect on pull).
+    let mut tx = pool.begin().await?;
+
     let result = sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ?")
         .bind(&auth.user_id)
         .bind(&id)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
 
     if result.rows_affected() == 0 {
+        tx.commit().await?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -153,7 +159,7 @@ pub async fn delete_repeating(
     )
     .bind(&auth.user_id)
     .bind(&id)
-    .fetch_all(&pool)
+    .fetch_all(&mut *tx)
     .await?;
 
     sqlx::query(
@@ -161,7 +167,7 @@ pub async fn delete_repeating(
     )
     .bind(&auth.user_id)
     .bind(&id)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
     for (item_id,) in &linked_ids {
@@ -171,7 +177,7 @@ pub async fn delete_repeating(
         .bind(&auth.user_id)
         .bind(item_id)
         .bind(&now)
-        .execute(&pool)
+        .execute(&mut *tx)
         .await?;
     }
 
@@ -181,8 +187,9 @@ pub async fn delete_repeating(
     .bind(&auth.user_id)
     .bind(&id)
     .bind(&now)
-    .execute(&pool)
+    .execute(&mut *tx)
     .await?;
 
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
