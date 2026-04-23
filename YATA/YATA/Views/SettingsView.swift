@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 // MARK: - SettingsView
 
@@ -12,6 +13,7 @@ struct SettingsView: View {
     /// lockstep.
     @AppStorage("serverMode") private var serverMode = "local"
     @Environment(RepositoryProvider.self) private var repositoryProvider
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showConnectSheet = false
     @State private var showDisconnectConfirm = false
@@ -19,6 +21,13 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var syncStatusValue: SyncStatus = .ok
+    /// Local instance so the Notifications section can reflect the current
+    /// OS authorization status. We deliberately don't expose a "Request
+    /// permission" button here — per product direction the OS prompt is
+    /// reserved for the moment the user actually sets a reminder (see
+    /// `ReminderPickerSheet` → `NotificationPrimerSheet`). This surface is
+    /// status + primer only.
+    @State private var permissionManager = NotificationPermissionManager()
 
     private var selectedPreference: Binding<ColorSchemePreference> {
         Binding(
@@ -36,6 +45,7 @@ struct SettingsView: View {
             Form {
                 syncSection
                 appearanceSection
+                notificationsSection
                 recentlyDoneSection
                 aboutSection
             }
@@ -68,6 +78,15 @@ struct SettingsView: View {
         }
         .onAppear {
             if isConnected { refreshSyncStatus() }
+            Task { await permissionManager.checkStatus() }
+        }
+        // Re-check on foreground: the user may have toggled notifications
+        // in iOS Settings and come back. Without this, the status row
+        // stays stale until the tab is redrawn.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await permissionManager.checkStatus() }
+            }
         }
     }
 
@@ -163,6 +182,79 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    // MARK: - Notifications section
+
+    @ViewBuilder
+    private var notificationsSection: some View {
+        Section {
+            statusRow
+            NotificationPreviewCard()
+                .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+        } header: {
+            Text("Notifications")
+        } footer: {
+            Text(notificationsFooter)
+        }
+    }
+
+    /// Top row of the Notifications section. For `.authorized` /
+    /// `.provisional` / `.ephemeral` we show a simple On label. For
+    /// `.denied` we render a tappable row that deep-links into iOS
+    /// Settings — the only recovery path once the user has denied. For
+    /// `.notDetermined` we show a neutral "not yet enabled" label: no
+    /// button, because the product direction is to defer the prompt
+    /// until the user sets a reminder.
+    @ViewBuilder
+    private var statusRow: some View {
+        switch permissionManager.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            LabeledContent("Status") {
+                Label("On", systemImage: "checkmark.circle.fill")
+                    .labelStyle(.titleAndIcon)
+                    .foregroundStyle(.green)
+            }
+        case .denied:
+            Button {
+                permissionManager.openSettings()
+            } label: {
+                HStack {
+                    Text("Status")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Label("Off — Open iOS Settings", systemImage: "bell.slash")
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        case .notDetermined:
+            LabeledContent("Status") {
+                Text("Not yet enabled")
+                    .foregroundStyle(.secondary)
+            }
+        @unknown default:
+            LabeledContent("Status", value: "Unknown")
+        }
+    }
+
+    private var notificationsFooter: String {
+        switch permissionManager.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return "YATA sends a reminder at the time you pick for a task. You can mark it done, snooze 30 minutes, or push it to tomorrow right from the notification."
+        case .denied:
+            return "You've turned off notifications for YATA. Reminders you set won't appear until you re-enable them in iOS Settings."
+        case .notDetermined:
+            return "Set a reminder on any task to be asked once for notification permission. YATA never sends anything else."
+        @unknown default:
+            return ""
         }
     }
 

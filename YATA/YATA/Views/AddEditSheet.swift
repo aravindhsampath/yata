@@ -97,7 +97,17 @@ struct AddEditSheet: View {
                 }
             }
             .sheet(isPresented: $showReminderPicker) {
-                ReminderPickerSheet(selectedDate: $reminderDate, permissionManager: permissionManager)
+                // Pass the in-progress title through so the primer-sheet's
+                // mock reminder shows the user's real task instead of a
+                // placeholder. Trim + fall back so blank titles still get
+                // a sensible preview.
+                ReminderPickerSheet(
+                    selectedDate: $reminderDate,
+                    permissionManager: permissionManager,
+                    taskTitle: title.trimmingCharacters(in: .whitespaces).isEmpty
+                        ? "Your task"
+                        : title.trimmingCharacters(in: .whitespaces)
+                )
             }
             .sheet(isPresented: $showReschedulePicker) {
                 rescheduleSheet

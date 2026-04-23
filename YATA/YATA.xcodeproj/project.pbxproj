@@ -20,6 +20,8 @@
 		A10000010000000000000012 /* AddEditSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000012 /* AddEditSheet.swift */; };
 		A10000010000000000000013 /* ReminderPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000013 /* ReminderPickerSheet.swift */; };
 		A10000010000000000000014 /* DoneSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000014 /* DoneSectionView.swift */; };
+		A10000010000000000000050 /* NotificationPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000050 /* NotificationPreviewCard.swift */; };
+		A10000010000000000000051 /* NotificationPrimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000051 /* NotificationPrimerSheet.swift */; };
 		A10000010000000000000015 /* RepeatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* RepeatingView.swift */; };
 		A10000010000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* SettingsView.swift */; };
 		A10000010000000000000017 /* YATATheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000017 /* YATATheme.swift */; };
@@ -87,6 +89,8 @@
 		A20000010000000000000012 /* AddEditSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddEditSheet.swift; sourceTree = "<group>"; };
 		A20000010000000000000013 /* ReminderPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPickerSheet.swift; sourceTree = "<group>"; };
 		A20000010000000000000014 /* DoneSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoneSectionView.swift; sourceTree = "<group>"; };
+		A20000010000000000000050 /* NotificationPreviewCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreviewCard.swift; sourceTree = "<group>"; };
+		A20000010000000000000051 /* NotificationPrimerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPrimerSheet.swift; sourceTree = "<group>"; };
 		A20000010000000000000015 /* RepeatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingView.swift; sourceTree = "<group>"; };
 		A20000010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000010000000000000017 /* YATATheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATheme.swift; sourceTree = "<group>"; };
@@ -226,6 +230,8 @@
 				A20000010000000000000011 /* TodoPillView.swift */,
 				A20000010000000000000012 /* AddEditSheet.swift */,
 				A20000010000000000000013 /* ReminderPickerSheet.swift */,
+				A20000010000000000000050 /* NotificationPreviewCard.swift */,
+				A20000010000000000000051 /* NotificationPrimerSheet.swift */,
 				A20000010000000000000014 /* DoneSectionView.swift */,
 				A20000010000000000000015 /* RepeatingView.swift */,
 				A20000010000000000000016 /* SettingsView.swift */,
@@ -426,6 +432,8 @@
 				A10000010000000000000011 /* TodoPillView.swift in Sources */,
 				A10000010000000000000012 /* AddEditSheet.swift in Sources */,
 				A10000010000000000000013 /* ReminderPickerSheet.swift in Sources */,
+				A10000010000000000000050 /* NotificationPreviewCard.swift in Sources */,
+				A10000010000000000000051 /* NotificationPrimerSheet.swift in Sources */,
 				A10000010000000000000014 /* DoneSectionView.swift in Sources */,
 				A10000010000000000000015 /* RepeatingView.swift in Sources */,
 				A10000010000000000000016 /* SettingsView.swift in Sources */,
