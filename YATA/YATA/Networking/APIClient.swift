@@ -140,8 +140,11 @@ final class APIClient {
             throw .unauthorized
         case 404:
             throw .notFound
-        case 409:
-            throw .conflict(serverVersion: data)
+        // 409 used to map to APIError.conflict for optimistic-concurrency
+        // failures. The server no longer returns it — see
+        // docs/conflict_resolution_redesign.md. A 409 from a stale server
+        // (one that hasn't been redeployed) now falls through to
+        // .serverError below, which is benign and user-readable.
         case 422:
             let message = (try? decoder.decode(ErrorResponse.self, from: data))?.error.message ?? "Validation error"
             throw .validationError(message: message)

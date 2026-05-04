@@ -24,7 +24,10 @@ struct UpdateItemRequest: Encodable {
     let reminderDate: String?
     let scheduledDate: String
     let rescheduleCount: Int
-    let updatedAt: String?
+    // No `updatedAt`. Server is authoritative on `updated_at`; the client
+    // never claims it. Wall-clock RFC3339 round-tripping was the source of
+    // four separate false-409 bugs — see
+    // docs/conflict_resolution_redesign.md.
 }
 
 struct ReorderRequest: Encodable {
@@ -77,5 +80,5 @@ struct UpdateRepeatingRequest: Encodable {
     let scheduledMonth: Int?
     let sortOrder: Int
     let defaultUrgency: Int
-    let updatedAt: String?
+    // No `updatedAt` — same redesign as UpdateItemRequest above.
 }

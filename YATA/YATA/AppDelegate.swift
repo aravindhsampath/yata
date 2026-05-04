@@ -221,10 +221,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             sortOrder: item.sortOrder,
             reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
             scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
-            rescheduleCount: item.rescheduleCount,
-            // ISO8601 timestamp matching server's RFC3339 — any other format
-            // triggers false 409 conflicts on the server's string compare.
-            updatedAt: item.updatedAt.map { DateFormatters.iso8601DateTime.string(from: $0) }
+            rescheduleCount: item.rescheduleCount
+            // No updatedAt — server is authoritative. Notification-action
+            // mutations were the worst offender for false 409s under the
+            // old design (separate ModelContext, stale `item.updatedAt`).
+            // See docs/conflict_resolution_redesign.md.
         )
         let id = item.id
         Task {

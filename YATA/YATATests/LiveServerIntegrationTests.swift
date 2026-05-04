@@ -109,9 +109,12 @@ final class LiveServerIntegrationTests: XCTestCase {
     /// we construct a fresh value each time.
     private func updateRequest(
         from server: APITodoItem,
-        title: String? = nil,
-        updatedAt: String? = nil
+        title: String? = nil
     ) -> UpdateItemRequest {
+        // Note: `updatedAt` is no longer a field on UpdateItemRequest —
+        // server is authoritative on `updated_at` after the conflict
+        // redesign (docs/conflict_resolution_redesign.md). The legacy
+        // updatedAt parameter on this helper has been removed.
         UpdateItemRequest(
             title: title ?? server.title,
             priority: server.priority,
@@ -119,8 +122,7 @@ final class LiveServerIntegrationTests: XCTestCase {
             sortOrder: server.sortOrder,
             reminderDate: server.reminderDate,
             scheduledDate: server.scheduledDate,
-            rescheduleCount: server.rescheduleCount,
-            updatedAt: updatedAt ?? server.updatedAt
+            rescheduleCount: server.rescheduleCount
         )
     }
 
@@ -167,30 +169,27 @@ final class LiveServerIntegrationTests: XCTestCase {
         XCTAssertEqual(updated.title, "updated title", "server rejected the update (likely 409)")
     }
 
-    /// Regression for the specific round-trip shape that caused the
-    /// 409 storm: server nanosecond precision, client echoes whole-second.
-    func test_update_withWholeSecondUpdatedAt_succeeds() async throws {
+    /// Regression: rapid back-to-back updates of the same item — the
+    /// canonical "user double-taps to mark done" pattern — must all
+    /// succeed against a live server. Pre-redesign, the second PUT
+    /// would 409 because the server's stored `updated_at` raced ahead
+    /// of the client's reconciled value. Post-redesign, the conflict
+    /// check is gone (see docs/conflict_resolution_redesign.md) and
+    /// every PUT succeeds.
+    func test_update_rapidBackToBack_doesNotFalseConflict() async throws {
         let client = makeClient()
         let id = UUID()
         let created: APITodoItem = try await client.request(
-            .createItem(body: createRequest(id: id, title: "whole-sec"))
+            .createItem(body: createRequest(id: id, title: "burst"))
         )
 
-        // Parse the server's fractional updated_at with the iOS formatter
-        // chain (matches what CachingRepository does after
-        // creating/reconciling) and re-serialize using the whole-second
-        // formatter — the original bug path.
-        guard let rawServer = created.updatedAt,
-              let parsed = DateFormatters.parseDateTime(rawServer)
-        else {
-            XCTFail("couldn't parse server updated_at: \(String(describing: created.updatedAt))")
-            return
+        // Three updates in immediate succession with the same source
+        // record — proves the server doesn't gate on `updated_at`.
+        for i in 1...3 {
+            let body = updateRequest(from: created, title: "burst \(i)")
+            let updated: APITodoItem = try await client.request(.updateItem(id: id, body: body))
+            XCTAssertEqual(updated.title, "burst \(i)", "PUT #\(i) was rejected — conflict check regressed?")
         }
-        let wholeSecond = DateFormatters.iso8601DateTime.string(from: parsed) // "…Z" no fractional
-        XCTAssertFalse(wholeSecond.contains("."), "expected whole-second formatter here")
-
-        let body = updateRequest(from: created, title: "whole-sec ok", updatedAt: wholeSecond)
-        _ = try await client.request(.updateItem(id: id, body: body)) as APITodoItem
     }
 
     /// Mark done → undone round trip.

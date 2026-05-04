@@ -86,7 +86,7 @@ final class EndpointTests: XCTestCase {
         let id = UUID()
         let body = UpdateItemRequest(
             title: "Updated", priority: 1, isDone: false, sortOrder: 0,
-            reminderDate: nil, scheduledDate: "2026-04-05", rescheduleCount: 0, updatedAt: nil
+            reminderDate: nil, scheduledDate: "2026-04-05", rescheduleCount: 0
         )
         let endpoint = Endpoint.updateItem(id: id, body: body)
         XCTAssertEqual(endpoint.path, "/items/\(id)")
@@ -210,7 +210,7 @@ final class EndpointTests: XCTestCase {
             title: "Standup", frequency: 0,
             scheduledTime: "09:00:00", scheduledDayOfWeek: nil,
             scheduledDayOfMonth: nil, scheduledMonth: nil,
-            sortOrder: 0, defaultUrgency: 2, updatedAt: nil
+            sortOrder: 0, defaultUrgency: 2
         )
         let endpoint = Endpoint.updateRepeating(id: id, body: body)
         XCTAssertEqual(endpoint.path, "/repeating/\(id)")

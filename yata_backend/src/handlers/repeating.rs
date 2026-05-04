@@ -84,7 +84,12 @@ pub async fn update_repeating(
         ));
     }
 
-    let existing = sqlx::query_as::<_, RepeatingItem>(
+    // Existence check only — same redesign as update_item:
+    // server is authoritative on updated_at, no optimistic-concurrency
+    // gate. See docs/conflict_resolution_redesign.md. The fetch_optional
+    // + ok_or pair is the existence check; no fields from the row are
+    // needed to compute the UPDATE.
+    let _existing = sqlx::query_as::<_, RepeatingItem>(
         "SELECT * FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
     .bind(&auth.user_id)
@@ -92,12 +97,6 @@ pub async fn update_repeating(
     .fetch_optional(&pool)
     .await?
     .ok_or(AppError::NotFound)?;
-
-    if crate::time::is_server_newer(&existing.updated_at, &body.updated_at) {
-        let server_version =
-            serde_json::to_value(&existing).map_err(|e| AppError::Internal(e.to_string()))?;
-        return Err(AppError::Conflict(server_version));
-    }
 
     let now = Utc::now().to_rfc3339();
 

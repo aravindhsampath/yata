@@ -115,20 +115,28 @@ final class APIClientTests: XCTestCase {
         }
     }
 
-    func testConflict() async {
-        let serverVersionJSON = """
+    /// 409 used to map to `APIError.conflict` for optimistic-concurrency
+    /// failures. After the conflict-detection redesign (see
+    /// docs/conflict_resolution_redesign.md) the server no longer emits
+    /// 409 for write conflicts, and the client no longer has a `.conflict`
+    /// case. A 409 from a stale server falls through to `.serverError`
+    /// — proven here so a regression that re-introduces optimistic
+    /// concurrency is caught.
+    func testConflictStatusCodeFallsThroughToServerError() async {
+        let json = """
         {"error":{"code":"conflict","message":"Version mismatch"}}
         """
-        stubResponse(statusCode: 409, json: serverVersionJSON)
+        stubResponse(statusCode: 409, json: json)
         do {
             let _: HealthResponse = try await client.request(.health)
-            XCTFail("Expected conflict error")
+            XCTFail("Expected an APIError to be thrown")
         } catch let error as APIError {
-            guard case .conflict(let data) = error else {
-                XCTFail("Expected .conflict, got \(error)")
-                return
+            switch error {
+            case .serverError:
+                break // expected fallthrough
+            default:
+                XCTFail("Expected .serverError fallthrough, got \(error)")
             }
-            XCTAssertFalse(data.isEmpty)
         } catch {
             XCTFail("Unexpected error type: \(error)")
         }

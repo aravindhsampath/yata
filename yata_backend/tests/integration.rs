@@ -150,8 +150,14 @@ async fn create_item_validates_title() {
     assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+// `update_item_with_conflict_detection` (removed 2026-04-23):
+// Optimistic-concurrency check on updated_at was dropped — see
+// docs/conflict_resolution_redesign.md. A stale `updated_at` on a write
+// is now silently ignored; last write wins. The test that proved the
+// 409 path is therefore no longer valid behavior.
+
 #[tokio::test]
-async fn update_item_with_conflict_detection() {
+async fn update_item_accepts_stale_updated_at() {
     let (app, pool) = app().await;
     let token = get_token(&pool).await;
 
@@ -177,52 +183,31 @@ async fn update_item_with_conflict_detection() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::CREATED);
 
-    // Update with stale timestamp → should succeed (first update)
-    let res = app
-        .clone()
-        .oneshot(auth_request(
-            "PUT",
-            "/items/33333333-3333-3333-3333-333333333333",
-            Some(json!({
-                "title": "Updated title",
-                "priority": 1,
-                "is_done": false,
-                "sort_order": 0,
-                "reminder_date": null,
-                "scheduled_date": "2026-04-05",
-                "reschedule_count": 0,
-                "updated_at": "2099-01-01T00:00:00+00:00"
-            })),
-            &token,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::OK);
-    let updated = body_json(res).await;
-    assert_eq!(updated["title"], "Updated title");
-
-    // Update with old timestamp → should conflict
-    let res = app
-        .oneshot(auth_request(
-            "PUT",
-            "/items/33333333-3333-3333-3333-333333333333",
-            Some(json!({
-                "title": "Stale update",
-                "priority": 1,
-                "is_done": false,
-                "sort_order": 0,
-                "reminder_date": null,
-                "scheduled_date": "2026-04-05",
-                "reschedule_count": 0,
-                "updated_at": "2020-01-01T00:00:00+00:00"
-            })),
-            &token,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(res.status(), StatusCode::CONFLICT);
-    let body = body_json(res).await;
-    assert!(body["error"]["server_version"].is_object());
+    // Two writes back-to-back with the SAME old `updated_at`. Pre-fix
+    // this would 409 on the second. Post-fix, both succeed — the field
+    // is accepted for backward compat but never compared.
+    for title in ["First update", "Second update"] {
+        let res = app
+            .clone()
+            .oneshot(auth_request(
+                "PUT",
+                "/items/33333333-3333-3333-3333-333333333333",
+                Some(json!({
+                    "title": title,
+                    "priority": 1,
+                    "is_done": false,
+                    "sort_order": 0,
+                    "reminder_date": null,
+                    "scheduled_date": "2026-04-05",
+                    "reschedule_count": 0,
+                    "updated_at": "2020-01-01T00:00:00+00:00"
+                })),
+                &token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "stale updated_at must not 409");
+    }
 }
 
 #[tokio::test]

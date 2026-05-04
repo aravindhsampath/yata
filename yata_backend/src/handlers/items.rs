@@ -136,6 +136,14 @@ pub async fn update_item(
         ));
     }
 
+    // Existence check only. We deliberately do NOT compare updated_at
+    // against the body — see docs/conflict_resolution_redesign.md.
+    // Wall-clock RFC3339 strings turned out to be a fragile primitive for
+    // optimistic concurrency (precision, timezone, NTP skew), and YATA's
+    // single-user write-through model doesn't actually need it. The server
+    // is now authoritative on updated_at; the client never claims it.
+    // `body.updated_at` is accepted for backward compatibility with older
+    // clients but ignored.
     let existing = sqlx::query_as::<_, TodoItem>(
         "SELECT * FROM todo_items WHERE user_id = ? AND id = ? COLLATE NOCASE",
     )
@@ -144,16 +152,6 @@ pub async fn update_item(
     .fetch_optional(&pool)
     .await?
     .ok_or(AppError::NotFound)?;
-
-    // Conflict detection: parse both timestamps and compare as instants.
-    // Lexical string comparison breaks across precision/timezone variations
-    // (e.g. client sending "2026-04-20" vs server-stored RFC3339 — always
-    // flagged conflict, dropping legitimate client updates).
-    if crate::time::is_server_newer(&existing.updated_at, &body.updated_at) {
-        let server_version =
-            serde_json::to_value(&existing).map_err(|e| AppError::Internal(e.to_string()))?;
-        return Err(AppError::Conflict(server_version));
-    }
 
     let now = Utc::now().to_rfc3339();
 
