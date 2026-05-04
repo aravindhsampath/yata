@@ -25,6 +25,11 @@
 		A10000010000000000000015 /* RepeatingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000015 /* RepeatingView.swift */; };
 		A10000010000000000000016 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000016 /* SettingsView.swift */; };
 		A10000010000000000000017 /* YATATheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000017 /* YATATheme.swift */; };
+		A10000010000000000000060 /* YATAPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000060 /* YATAPalette.swift */; };
+		A10000010000000000000061 /* YATATypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000061 /* YATATypography.swift */; };
+		A10000010000000000000070 /* InterVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000070 /* InterVariable.ttf */; };
+		A10000010000000000000071 /* InterTight.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000071 /* InterTight.ttf */; };
+		A10000010000000000000072 /* JetBrainsMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000072 /* JetBrainsMono.ttf */; };
 		A10000010000000000000019 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000019 /* Assets.xcassets */; };
 		A10000010000000000000020 /* RepeatFrequency.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000020 /* RepeatFrequency.swift */; };
 		A10000010000000000000021 /* RepeatingItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000021 /* RepeatingItem.swift */; };
@@ -94,6 +99,11 @@
 		A20000010000000000000015 /* RepeatingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingView.swift; sourceTree = "<group>"; };
 		A20000010000000000000016 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A20000010000000000000017 /* YATATheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATheme.swift; sourceTree = "<group>"; };
+		A20000010000000000000060 /* YATAPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATAPalette.swift; sourceTree = "<group>"; };
+		A20000010000000000000061 /* YATATypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YATATypography.swift; sourceTree = "<group>"; };
+		A20000010000000000000070 /* InterVariable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = InterVariable.ttf; sourceTree = "<group>"; };
+		A20000010000000000000071 /* InterTight.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = InterTight.ttf; sourceTree = "<group>"; };
+		A20000010000000000000072 /* JetBrainsMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = JetBrainsMono.ttf; sourceTree = "<group>"; };
 		A20000010000000000000019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000010000000000000020 /* RepeatFrequency.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatFrequency.swift; sourceTree = "<group>"; };
 		A20000010000000000000021 /* RepeatingItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepeatingItem.swift; sourceTree = "<group>"; };
@@ -177,6 +187,7 @@
 				A50000010000000000000006 /* Views */,
 				A50000010000000000000007 /* Theme */,
 				A50000010000000000000008 /* Utilities */,
+				A50000010000000000000080 /* Fonts */,
 				A20000010000000000000019 /* Assets.xcassets */,
 			);
 			path = YATA;
@@ -247,8 +258,20 @@
 			isa = PBXGroup;
 			children = (
 				A20000010000000000000017 /* YATATheme.swift */,
+				A20000010000000000000060 /* YATAPalette.swift */,
+				A20000010000000000000061 /* YATATypography.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		A50000010000000000000080 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				A20000010000000000000070 /* InterVariable.ttf */,
+				A20000010000000000000071 /* InterTight.ttf */,
+				A20000010000000000000072 /* JetBrainsMono.ttf */,
+			);
+			path = Resources/Fonts;
 			sourceTree = "<group>";
 		};
 		A50000010000000000000008 /* Utilities */ = {
@@ -403,6 +426,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000010000000000000019 /* Assets.xcassets in Resources */,
+				A10000010000000000000070 /* InterVariable.ttf in Resources */,
+				A10000010000000000000071 /* InterTight.ttf in Resources */,
+				A10000010000000000000072 /* JetBrainsMono.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -438,6 +464,8 @@
 				A10000010000000000000015 /* RepeatingView.swift in Sources */,
 				A10000010000000000000016 /* SettingsView.swift in Sources */,
 				A10000010000000000000017 /* YATATheme.swift in Sources */,
+				A10000010000000000000060 /* YATAPalette.swift in Sources */,
+				A10000010000000000000061 /* YATATypography.swift in Sources */,
 				A10000010000000000000033 /* RepeatingItemData.swift in Sources */,
 				A10000010000000000000020 /* RepeatFrequency.swift in Sources */,
 				A10000010000000000000021 /* RepeatingItem.swift in Sources */,

@@ -29,6 +29,28 @@ enum YATATheme {
     static let containerShadowColor = Color.black.opacity(0.08)
     static let containerShadowRadius: Double = 6
     static let containerShadowY: Double = 4
+
+    // MARK: - Redesign tokens (radii + row heights)
+    //
+    // Introduced as part of the warm-palette redesign. The legacy `pillHeight`
+    // / `containerCornerRadius` constants above remain so any view that hasn't
+    // been migrated yet keeps its current geometry. New rows + section cards
+    // pull from these.
+
+    enum Radius {
+        static let section: CGFloat = 22
+        static let row: CGFloat = 14
+        static let sheet: CGFloat = 28
+        /// Effectively a capsule — used for tab bar, jot bar, accent action button.
+        static let pill: CGFloat = 9999
+    }
+
+    enum RowHeight {
+        static let todo: CGFloat = 52
+        static let repeating: CGFloat = 56
+        static let button: CGFloat = 44
+        static let addRow: CGFloat = 44
+    }
 }
 
 // MARK: - Cached grain texture

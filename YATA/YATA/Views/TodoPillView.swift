@@ -1,6 +1,26 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Single todo row in the redesigned home view.
+///
+/// Visual changes from the previous capsule pill:
+/// - 52pt row, 14pt corner radius (was 40pt capsule).
+/// - Transparent background — the row sits inside a surface section card,
+///   so it earns separation from typography and the section's hairline
+///   border, not from per-row chrome. While dragging, the row tints to
+///   `yataSurfaceHi` so the user sees what's moving.
+/// - Check circle on the LEFT (was overdue badge on the left). Filled in
+///   `yataDoneSage` once complete; outline in `yataTextMute` otherwise.
+/// - Carry-over (`rescheduleCount > 0`) is now an outlined amber pill in
+///   mono caps, never a filled circle. Information, not shame.
+/// - Title in Inter Variable 16/regular. Done state strikes through and
+///   drops the title to `yataTextMute`.
+/// - Swipe reveals use the new `yataAccent` (Tomorrow) and `yataDanger`
+///   (Delete) instead of system tint / red.
+///
+/// All behaviors are preserved: drag-and-drop reorder, swipe gestures,
+/// haptic feedback, just-dropped highlight, the first-time swipe hint,
+/// and every accessibility action. Only the chrome moved.
 struct TodoPillView: View {
     let item: TodoItem
     let justDropped: Bool
@@ -21,44 +41,56 @@ struct TodoPillView: View {
 
     private let deleteThreshold: Double = -150
     private let rescheduleThreshold: Double = 80
+    private var rowShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: YATATheme.Radius.row, style: .continuous)
+    }
 
     var body: some View {
         ZStack {
-            // Red delete background (left swipe)
+            // Left-revealed Delete background (row swiped LEFT = negative offset).
             HStack {
                 Spacer()
-                Image(systemName: "trash.fill")
-                    .foregroundStyle(.white)
-                    .padding(.trailing, 20)
+                HStack(spacing: 6) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Delete")
+                        .font(YATAFont.text(13, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.trailing, 18)
             }
-            .frame(height: YATATheme.pillHeight)
-            .background(.red, in: .capsule)
+            .frame(height: YATATheme.RowHeight.todo)
+            .background(Color.yataDanger, in: rowShape)
             .opacity(dragOffset < 0 ? min(1, Double(abs(dragOffset)) / abs(deleteThreshold)) : 0)
 
-            // Blue reschedule background (right swipe)
+            // Right-revealed Tomorrow background (row swiped RIGHT = positive offset).
             HStack {
-                Image(systemName: "calendar.badge.clock")
-                    .foregroundStyle(.white)
-                    .padding(.leading, 20)
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Tomorrow")
+                        .font(YATAFont.text(13, weight: .semibold))
+                }
+                .foregroundStyle(Color.yataBG)
+                .padding(.leading, 18)
                 Spacer()
             }
-            .frame(height: YATATheme.pillHeight)
-            .background(.tint, in: .capsule)
+            .frame(height: YATATheme.RowHeight.todo)
+            .background(Color.yataAccent, in: rowShape)
             .opacity(dragOffset > 0 ? min(1, dragOffset / rescheduleThreshold) : 0)
 
-            // Main pill content
-            pillContent
+            rowContent
                 .offset(x: dragOffset)
                 .gesture(swipeGesture)
         }
         .shadow(
-            color: justDropped ? YATATheme.backgroundColor(for: lanePriority).opacity(0.8) : .clear,
+            color: justDropped ? Color.yataAccent.opacity(0.5) : .clear,
             radius: justDropped ? 8 : 0
         )
         .scaleEffect(isCompleting ? 0.0 : 1.0)
         .opacity(isCompleting ? 0 : 1)
         .offset(x: isCompleting ? 100 : 0)
-        .contentShape(.dragPreview, Capsule())
+        .contentShape(.dragPreview, rowShape)
         .onDrag {
             triggerDragHaptic.toggle()
             onDragStart()
@@ -72,84 +104,114 @@ struct TodoPillView: View {
         .accessibilityAction(named: "Reschedule to tomorrow") { onRescheduleTomorrow() }
         .animation(.easeOut(duration: 0.3), value: isCompleting)
         .animation(.easeOut(duration: 0.3), value: justDropped)
-        .onAppear {
-            if !hasSeenSwipeHint && lanePriority == .high {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(600))
-                    guard !hasSeenSwipeHint else { return }
-                    withAnimation(.spring(duration: 0.6)) {
-                        dragOffset = -30
-                    }
-                    try? await Task.sleep(for: .milliseconds(400))
-                    withAnimation(.spring(duration: 0.6)) {
-                        dragOffset = 0
-                    }
-                    hasSeenSwipeHint = true
-                }
-            }
-        }
+        .onAppear { runFirstTimeSwipeHintIfNeeded() }
     }
 
-    // MARK: - Pill Content
+    // MARK: - Row content
 
-    private var pillContent: some View {
-        HStack(spacing: 6) {
-            // Overdue badge
-            if item.rescheduleCount >= 2 {
-                Text("\(item.rescheduleCount)")
-                    .font(YATATheme.overdueBadgeFont)
-                    .foregroundStyle(.white)
-                    .frame(width: 18, height: 18)
-                    .background(
-                        item.rescheduleCount >= 5 ? Color.red : Color.orange,
-                        in: .circle
-                    )
+    private var rowContent: some View {
+        HStack(spacing: 12) {
+            checkCircle
+
+            // Title — single line, ellipsizes. Done strikes through and
+            // drops to the muted token; lane-undone keeps full text.
+            Text(item.title)
+                .font(YATAFont.text(16))
+                .foregroundStyle(item.isDone ? Color.yataTextMute : Color.yataText)
+                .strikethrough(item.isDone, color: Color.yataTextMute)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Carry-over pill — outlined amber, mono caps. Hidden once done.
+            if item.rescheduleCount > 0, !item.isDone {
+                carryOverPill
             }
 
             if item.isRepeatingOccurrence {
                 Image(systemName: "repeat")
-                    .font(YATATheme.metadataIconFont)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.yataTextMute)
             }
-
-            Text(item.title)
-                .font(YATATheme.pillFont)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-
-            Spacer()
 
             if let date = item.reminderDate {
-                Image(systemName: "bell.fill")
-                    .font(YATATheme.metadataIconFont)
-                    .foregroundStyle(.tertiary)
-                Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
-                    .font(YATATheme.captionFont)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 11, weight: .medium))
+                    Text(date, format: .dateTime.month(.abbreviated).day().hour().minute())
+                        .font(YATAFont.mono(10))
+                }
+                .foregroundStyle(Color.yataTextMute)
             }
 
-            Button("Edit", systemImage: "pencil", action: onEdit)
-                .labelStyle(.iconOnly)
-                .font(YATATheme.metadataIconFont)
-                .foregroundStyle(.tertiary)
+            // Quiet edit chevron — long-press would be more on-design but
+            // we're preserving an explicit button so accessibility still
+            // has a clear hit target.
+            Button(action: onEdit) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.yataTextMute)
+            }
+            .accessibilityLabel("Edit \(item.title)")
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
-        .frame(height: YATATheme.pillHeight)
-        .contentShape(.capsule)
+        .frame(height: YATATheme.RowHeight.todo)
+        .background(
+            // Tint to surfaceHi only while actively swiping; otherwise
+            // transparent so the section card shows through.
+            (dragOffset != 0 ? Color.yataSurfaceHi : .clear),
+            in: rowShape
+        )
+        .contentShape(rowShape)
         .onTapGesture { markDone() }
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Mark \(item.title) as done")
-        .background(.regularMaterial, in: .capsule)
     }
 
-    // MARK: - Bidirectional Swipe Gesture
+    // MARK: - Pieces
+
+    private var checkCircle: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(Color.yataTextMute, lineWidth: 1.5)
+                .opacity(item.isDone ? 0 : 1)
+            Circle()
+                .fill(Color.yataDoneSage)
+                .opacity(item.isDone ? 1 : 0)
+            if item.isDone {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(Color.yataBG)
+            }
+        }
+        .frame(width: 22, height: 22)
+        .animation(.easeOut(duration: 0.18), value: item.isDone)
+    }
+
+    private var carryOverPill: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 9, weight: .semibold))
+            Text("\(item.rescheduleCount)")
+                .font(YATAFont.mono(10))
+        }
+        .foregroundStyle(Color.yataRolled)
+        .padding(.horizontal, 7)
+        .frame(height: 20)
+        .overlay(
+            Capsule()
+                .stroke(Color.yataRolled, lineWidth: 1)
+        )
+        .accessibilityLabel("Carried over \(item.rescheduleCount) days")
+    }
+
+    // MARK: - Bidirectional Swipe Gesture (unchanged behavior, restyled visuals)
 
     private var swipeGesture: some Gesture {
         DragGesture(minimumDistance: 20)
             .onChanged { value in
-                let horizontal = value.translation.width
-                dragOffset = horizontal
+                dragOffset = value.translation.width
             }
             .onEnded { _ in
                 if dragOffset < deleteThreshold {
@@ -167,9 +229,7 @@ struct TodoPillView: View {
                         onRescheduleTomorrow()
                     }
                 } else {
-                    withAnimation(.bouncy) {
-                        dragOffset = 0
-                    }
+                    withAnimation(.bouncy) { dragOffset = 0 }
                 }
             }
     }
@@ -180,6 +240,22 @@ struct TodoPillView: View {
         Task {
             try? await Task.sleep(for: .milliseconds(300))
             onMarkDone()
+        }
+    }
+
+    /// One-time hint: nudges the highest-priority lane's first row left a
+    /// few points to teach the swipe-to-delete affordance. Behavior is
+    /// preserved as-is from the previous capsule design — only the
+    /// pixel offset survives changing geometry untouched.
+    private func runFirstTimeSwipeHintIfNeeded() {
+        guard !hasSeenSwipeHint, lanePriority == .high else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !hasSeenSwipeHint else { return }
+            withAnimation(.spring(duration: 0.6)) { dragOffset = -30 }
+            try? await Task.sleep(for: .milliseconds(400))
+            withAnimation(.spring(duration: 0.6)) { dragOffset = 0 }
+            hasSeenSwipeHint = true
         }
     }
 }

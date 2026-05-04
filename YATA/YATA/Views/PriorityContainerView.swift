@@ -8,43 +8,66 @@ struct PriorityContainerView: View {
     private var items: [TodoItem] { viewModel.items(for: priority) }
 
     var body: some View {
-        VStack(spacing: YATATheme.pillSpacing) {
-            // Lane label
-            Text(priority.label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 4)
+        VStack(spacing: 0) {
+            // Mono-caps section header. The label sits in `textDim`; the
+            // right-aligned meta ("N open") sits one tier quieter in
+            // `textMute`. Hierarchy lives entirely in typography here —
+            // no per-priority colored fill on the card.
+            HStack(alignment: .firstTextBaseline) {
+                Text(priority.label.uppercased())
+                    .font(YATAFont.mono(10))
+                    .tracking(1.4) // 0.14em on 10pt ≈ 1.4pt absolute
+                    .foregroundStyle(Color.yataTextDim)
+                Spacer()
+                Text(metaLabel)
+                    .font(YATAFont.mono(10))
+                    .tracking(0.6)
+                    .foregroundStyle(Color.yataTextMute)
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 2)
+            .padding(.bottom, 8)
 
-            ForEach(items) { item in
-                if let index = items.firstIndex(where: { $0.id == item.id }),
-                   viewModel.dropTarget?.priority == priority,
-                   viewModel.dropTarget?.index == index {
+            // Rows + insertion indicators + Add row, all sharing tight
+            // 2pt vertical gap. Rows do their own internal padding.
+            VStack(spacing: 2) {
+                ForEach(items) { item in
+                    if let index = items.firstIndex(where: { $0.id == item.id }),
+                       viewModel.dropTarget?.priority == priority,
+                       viewModel.dropTarget?.index == index {
+                        insertionIndicator
+                    }
+
+                    TodoPillView(
+                        item: item,
+                        justDropped: viewModel.justDroppedItemID == item.id,
+                        lanePriority: priority,
+                        onMarkDone: { Task { await viewModel.markDone(item) } },
+                        onEdit: { viewModel.editingItem = item },
+                        onDelete: { Task { await viewModel.deleteItem(item) } },
+                        onDragStart: { viewModel.startDrag(itemID: item.id) },
+                        onRescheduleTomorrow: { Task { await viewModel.rescheduleToTomorrow(item) } }
+                    )
+                }
+
+                if viewModel.dropTarget?.priority == priority
+                    && viewModel.dropTarget?.index == items.count {
                     insertionIndicator
                 }
 
-                TodoPillView(
-                    item: item,
-                    justDropped: viewModel.justDroppedItemID == item.id,
-                    lanePriority: priority,
-                    onMarkDone: { Task { await viewModel.markDone(item) } },
-                    onEdit: { viewModel.editingItem = item },
-                    onDelete: { Task { await viewModel.deleteItem(item) } },
-                    onDragStart: { viewModel.startDrag(itemID: item.id) },
-                    onRescheduleTomorrow: { Task { await viewModel.rescheduleToTomorrow(item) } }
-                )
+                addRow
             }
-
-            // Insertion indicator at the end
-            if viewModel.dropTarget?.priority == priority
-                && viewModel.dropTarget?.index == items.count {
-                insertionIndicator
-            }
-
-            addButton
         }
-        .padding(YATATheme.containerPadding)
-        .containerStyle(color: YATATheme.backgroundColor(for: priority))
+        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: YATATheme.Radius.section, style: .continuous)
+                .fill(Color.yataSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: YATATheme.Radius.section, style: .continuous)
+                .stroke(Color.yataHairline, lineWidth: 1)
+        )
         .onDrop(of: [UTType.text], delegate: PriorityDropDelegate(
             priority: priority,
             viewModel: viewModel
@@ -54,28 +77,61 @@ struct PriorityContainerView: View {
 
     // MARK: - Subviews
 
-    private var addButton: some View {
+    /// Right-aligned "N open" meta in mono caps. Reads as quietly informative
+    /// next to the section label — the user gets a glanceable count without
+    /// the eye darting to a colored badge.
+    private var metaLabel: String {
+        let count = items.count
+        return count == 1 ? "1 open" : "\(count) open"
+    }
+
+    /// Collapsed Add row — dashed-circle plus glyph + label in `textDim`.
+    /// Visually reads as an affordance, not a chip; matches the design's
+    /// "tap to expand into inline editor" pattern even though we still
+    /// route to the existing AddEditSheet for now.
+    private var addRow: some View {
         Button(action: addTapped) {
-            HStack {
-                Image(systemName: "plus")
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .strokeBorder(
+                            Color.yataTextMute,
+                            style: StrokeStyle(lineWidth: 1.5, dash: [2.5, 2.5])
+                        )
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.yataTextMute)
+                }
+                .frame(width: 22, height: 22)
+
                 Text("Add")
+                    .font(YATAFont.text(15))
+                    .foregroundStyle(Color.yataTextDim)
+
+                Spacer()
             }
-            .font(YATATheme.pillFont)
-            .foregroundStyle(.primary)
+            .padding(.horizontal, 14)
             .frame(maxWidth: .infinity)
-            .frame(height: YATATheme.pillHeight)
-            .contentShape(.capsule)
+            .frame(height: YATATheme.RowHeight.addRow)
+            .contentShape(
+                RoundedRectangle(cornerRadius: YATATheme.Radius.row, style: .continuous)
+            )
         }
-        .background(.regularMaterial, in: .capsule)
+        .buttonStyle(.plain)
         .accessibilityLabel("Add to \(priority.label)")
     }
 
+    /// Insertion indicator while drag-dropping. 14pt rounded rect with a
+    /// dashed accent stroke, matching the new row geometry exactly so the
+    /// "this is where it'll land" mental model holds.
     private var insertionIndicator: some View {
-        Capsule()
-            .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            .foregroundStyle(.secondary.opacity(0.5))
-            .frame(height: YATATheme.pillHeight)
-            .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        RoundedRectangle(cornerRadius: YATATheme.Radius.row, style: .continuous)
+            .strokeBorder(
+                Color.yataAccent.opacity(0.55),
+                style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])
+            )
+            .frame(height: YATATheme.RowHeight.todo)
+            .transition(.opacity.combined(with: .scale(scale: 0.97)))
     }
 
     private func addTapped() {

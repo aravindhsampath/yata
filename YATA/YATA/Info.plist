@@ -11,5 +11,20 @@
 	<array>
 		<string>com.aravindhsampath.yata.sync</string>
 	</array>
+	<!--
+	  Bundled variable TTFs for the YATA redesign. Each file is a single
+	  variable font supporting the full weight axis; SwiftUI Font.custom(...)
+	  combined with .weight(...) maps onto the wght axis at render time.
+	  Family names registered (resolved from each TTF's name table):
+	    InterVariable.ttf  → "Inter Variable"  (body)
+	    InterTight.ttf     → "Inter Tight"     (display)
+	    JetBrainsMono.ttf  → "JetBrains Mono"  (mono labels)
+	-->
+	<key>UIAppFonts</key>
+	<array>
+		<string>InterVariable.ttf</string>
+		<string>InterTight.ttf</string>
+		<string>JetBrainsMono.ttf</string>
+	</array>
 </dict>
 </plist>
