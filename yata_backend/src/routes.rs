@@ -59,6 +59,8 @@ pub fn build_router_with(pool: SqlitePool, config: Config, rate_limit: RateLimit
 
     // Protected routes (auth required)
     let protected = Router::new()
+        // Token refresh — caller must already have a valid token.
+        .route("/auth/refresh", post(handlers::auth::auth_refresh))
         // Todo items CRUD
         .route("/items", get(handlers::items::list_items))
         .route("/items", post(handlers::items::create_item))
