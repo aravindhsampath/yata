@@ -1,0 +1,32 @@
+[Unit]
+Description=YATA SQLite backup (one-shot, called from yata-backup.timer)
+After=network.target
+
+# Don't run if the main service hasn't been started at least once —
+# avoids creating a backup of an empty / not-yet-migrated DB.
+Requires=yata.service
+
+[Service]
+Type=oneshot
+User=yata
+Group=yata
+WorkingDirectory=/var/lib/yata
+EnvironmentFile=/etc/yata/yata.env
+
+# `--output-dir` and `--keep` use defaults (/var/backups/yata, keep=14).
+# Override per-deployment by editing this unit if you want different
+# retention or a different mount point.
+ExecStart=/usr/local/bin/yata_backend backup
+
+# Backups must not block on a stuck server — give VACUUM INTO 5 min.
+TimeoutStartSec=5min
+
+# Hardening — we only need to read the live DB and write to the
+# backup directory. `ProtectSystem=strict` makes the rest of the
+# filesystem read-only, including /usr and /etc, so a compromised
+# backup cron can't tamper with binaries.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/backups/yata /var/lib/yata

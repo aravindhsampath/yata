@@ -1,7 +1,10 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
+use yata_backend::backup;
 use yata_backend::config::Config;
 use yata_backend::password::hash_password;
 
@@ -38,6 +41,21 @@ enum Command {
         #[arg(long)]
         password_stdin: bool,
     },
+    /// Take a consistent point-in-time snapshot of the database to a
+    /// local-filesystem path. Uses SQLite's `VACUUM INTO` so the live
+    /// server doesn't need to be quiesced. Designed to be invoked
+    /// from a cron / systemd timer; see `deployment/yata-backup.*`.
+    Backup {
+        /// Directory to write the backup into. Created if missing.
+        #[arg(long, default_value = "/var/backups/yata")]
+        output_dir: PathBuf,
+        /// Number of newest backup files to retain after this run.
+        /// Older files in `--output-dir` are deleted. `0` is treated
+        /// as "no rotation, keep everything" — defensive against an
+        /// operator typo wiping the whole backup history.
+        #[arg(long, default_value_t = 14)]
+        keep: usize,
+    },
 }
 
 #[tokio::main]
@@ -59,6 +77,37 @@ async fn main() {
         Some(Command::DeleteUser { username }) => cmd_delete_user(&pool, &username).await,
         Some(Command::ResetPassword { username, password_stdin }) => {
             cmd_reset_password(&pool, &username, password_stdin).await
+        }
+        Some(Command::Backup { output_dir, keep }) => {
+            cmd_backup(&config.db_path, &output_dir, keep).await
+        }
+    }
+}
+
+async fn cmd_backup(db_path: &str, output_dir: &std::path::Path, keep: usize) {
+    // Conventional name: `yata-YYYYMMDD-HHMMSS.db`. Sortable, unique
+    // at second granularity, and matches the rotation `*.db` filter.
+    let now = chrono::Utc::now();
+    let filename = backup::default_filename(now);
+    let output_path = output_dir.join(&filename);
+
+    match backup::create_backup(db_path, &output_path).await {
+        Ok(bytes) => {
+            println!("backup ok: {} ({} bytes)", output_path.display(), bytes);
+        }
+        Err(e) => {
+            eprintln!("error: backup failed: {e}");
+            std::process::exit(1);
+        }
+    }
+
+    match backup::rotate(output_dir, keep) {
+        Ok(0) => {}
+        Ok(n) => println!("rotated: removed {n} old backup(s), kept {keep} newest"),
+        Err(e) => {
+            // Don't fail the whole command for a rotation hiccup —
+            // the new backup is on disk, which is the primary goal.
+            eprintln!("warning: rotation failed: {e}");
         }
     }
 }

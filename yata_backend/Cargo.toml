@@ -23,4 +23,8 @@ rpassword = "7"
 [dev-dependencies]
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }
+# Used by `tests/backup.rs` to set deterministic mtimes on temp files
+# so rotation ordering is unambiguous. Std lacks a portable mtime
+# setter — `filetime` is the standard ~20KB shim.
+filetime = "0.2"
 

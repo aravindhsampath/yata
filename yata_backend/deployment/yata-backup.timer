@@ -1,0 +1,20 @@
+[Unit]
+Description=Run YATA SQLite backup nightly
+Documentation=https://github.com/aravindhsampath/yata
+
+[Timer]
+# Daily at 03:15 UTC. Spread by up to 10 minutes so multiple YATA
+# instances on the same host don't all hit the disk at the exact
+# same moment. RandomizedDelaySec is a no-op for a single instance
+# but harmless.
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=10min
+
+# Catch-up: if the box was off at 03:15, run on next boot.
+Persistent=true
+
+# `Unit=` defaults to `<timer-basename>.service`, which is what we
+# want here.
+
+[Install]
+WantedBy=timers.target
