@@ -40,6 +40,13 @@ final class LocalTodoRepository: TodoRepository {
         return try modelContext.fetch(descriptor)
     }
 
+    func fetchTodoItem(by id: UUID) throws -> TodoItem? {
+        let predicate = #Predicate<TodoItem> { $0.id == id }
+        var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
+    }
+
     func add(_ item: TodoItem) throws {
         modelContext.insert(item)
         try modelContext.save()

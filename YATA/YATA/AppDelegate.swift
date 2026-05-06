@@ -181,146 +181,124 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     }
 
     // MARK: - Action Handlers
-
-    /// Local-tz calendar-day formatter (see DateFormatters.dateOnly for
-    /// the full rationale). Notification-action handlers mutate
-    /// scheduledDate, then mirror to the server — they must use the same
-    /// local-tz formatting every other write path uses or the user's
-    /// local day drifts by one when they're east of GMT.
-    private static let dateFormatter: DateFormatter = {
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        fmt.locale = Locale(identifier: "en_US_POSIX")
-        fmt.timeZone = .current
-        return fmt
-    }()
+    //
+    // Every handler now routes its write through `repositoryProvider.repository`
+    // — the SAME repository instance the SwiftUI UI uses. This is the
+    // serialization fix from P1.9: pre-refactor we opened a fresh
+    // `ModelContext(container)` per handler AND fired a duplicate write
+    // via a private `logMutation` → `apiClient.updateItem` path. Two
+    // distinct contexts on the same row could merge in surprising
+    // orders, and the manual API mirror bypassed the repository's
+    // reconciliation. Now both UI taps and notification taps converge
+    // on `repository.update(item)` / `repository.reschedule(item, …)`,
+    // which the CachingRepository implements as a single
+    // local-then-server transaction in API mode and a pure-local
+    // write in Local mode.
 
     @MainActor
-    private func handleMarkDone(itemID: UUID) async {
-        // Wait for the container to be wired up before we read it.
-        // Cold-launch-from-notification can deliver the action
-        // before YATAApp's onAppear fires; pre-fix this method
-        // silently bailed and the user's tap was lost.
-        guard let container = await awaitContainer() else { return }
-        let context = ModelContext(container)
-        let predicate = #Predicate<TodoItem> { $0.id == itemID }
-        var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
-        descriptor.fetchLimit = 1
+    func handleMarkDone(itemID: UUID) async {
+        // Wait for the container + provider to be wired before we
+        // touch them (cold-launch-from-notification race; see P1.8).
+        guard await awaitContainer() != nil,
+              let repo = repositoryProvider?.todoRepository else { return }
+        guard let item = try? await repo.fetchTodoItem(by: itemID) else { return }
 
-        guard let item = try? context.fetch(descriptor).first else { return }
         item.isDone = true
         item.completedAt = .now
-        try? context.save()
 
-        logMutation(for: item)
+        do {
+            try await repo.update(item)
+        } catch {
+            // Swallowed by design — notification actions have no UI
+            // to surface a write failure on. The next foreground sync
+            // will reconcile any drift. This used to be a fire-and-
+            // forget API call; now it's the repository's own
+            // local-then-server flow with the same fallback.
+        }
 
         NotificationScheduler.cancelReminder(for: itemID)
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
     }
 
-    private func handleSnooze30(itemID: UUID, from content: UNNotificationContent) {
+    func handleSnooze30(itemID: UUID, from content: UNNotificationContent) {
         let snoozeDate = Date.now.addingTimeInterval(30 * 60)
 
-        guard let newContent = content.mutableCopy() as? UNMutableNotificationContent else { return }
-        newContent.body = "Snoozed - \(newContent.title)"
-
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute],
-            from: snoozeDate
-        )
-        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
-        let identifier = "\(NotificationScheduler.identifierPrefix)\(itemID.uuidString)"
-        let request = UNNotificationRequest(identifier: identifier, content: newContent, trigger: trigger)
-
-        UNUserNotificationCenter.current().add(request)
+        // Schedule the local notification first — independent of the
+        // data-store write. This matches the previous behavior so a
+        // race between the OS reschedule and our repository update
+        // doesn't lose the reminder.
+        if let newContent = content.mutableCopy() as? UNMutableNotificationContent {
+            newContent.body = "Snoozed - \(newContent.title)"
+            let components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: snoozeDate
+            )
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let identifier = "\(NotificationScheduler.identifierPrefix)\(itemID.uuidString)"
+            let request = UNNotificationRequest(
+                identifier: identifier,
+                content: newContent,
+                trigger: trigger
+            )
+            UNUserNotificationCenter.current().add(request)
+        }
 
         Task { @MainActor in
-            // See `handleMarkDone` — same cold-launch race window.
-            guard let container = await awaitContainer() else { return }
-            let context = ModelContext(container)
-            let predicate = #Predicate<TodoItem> { $0.id == itemID }
-            var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
-            descriptor.fetchLimit = 1
-            guard let item = try? context.fetch(descriptor).first else { return }
-            item.reminderDate = snoozeDate
-            try? context.save()
+            guard await awaitContainer() != nil,
+                  let repo = repositoryProvider?.todoRepository else { return }
+            guard let item = try? await repo.fetchTodoItem(by: itemID) else { return }
 
-            logMutation(for: item)
+            item.reminderDate = snoozeDate
+
+            do {
+                try await repo.update(item)
+            } catch {
+                // See handleMarkDone; same fire-and-forget rationale.
+            }
 
             NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
         }
     }
 
     @MainActor
-    private func handleTomorrow(itemID: UUID) async {
-        // See `handleMarkDone` — same cold-launch race window.
-        guard let container = await awaitContainer() else { return }
-        let context = ModelContext(container)
-        let predicate = #Predicate<TodoItem> { $0.id == itemID }
-        var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
-        descriptor.fetchLimit = 1
-
-        guard let item = try? context.fetch(descriptor).first else { return }
+    func handleTomorrow(itemID: UUID) async {
+        guard await awaitContainer() != nil,
+              let repo = repositoryProvider?.todoRepository else { return }
+        guard let item = try? await repo.fetchTodoItem(by: itemID) else { return }
 
         let calendar = Calendar.current
-        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now))!
-        item.scheduledDate = tomorrow
-        item.rescheduleCount += 1
+        let tomorrow = calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: .now)
+        )!
+
+        // `repo.reschedule` advances scheduledDate, increments
+        // rescheduleCount, and saves locally + mirrors to the server
+        // in one shot. It does NOT touch reminderDate — we patch
+        // that below with a follow-up `update` if a reminder was set.
+        do {
+            try await repo.reschedule(item, to: tomorrow, resetCount: false)
+        } catch {
+            return
+        }
 
         if let oldReminder = item.reminderDate {
             let timeComponents = calendar.dateComponents([.hour, .minute], from: oldReminder)
-            item.reminderDate = calendar.date(bySettingHour: timeComponents.hour ?? 9,
-                                               minute: timeComponents.minute ?? 0,
-                                               second: 0, of: tomorrow)
+            item.reminderDate = calendar.date(
+                bySettingHour: timeComponents.hour ?? 9,
+                minute: timeComponents.minute ?? 0,
+                second: 0,
+                of: tomorrow
+            )
+            try? await repo.update(item)
         }
-
-        try? context.save()
-
-        logMutation(for: item)
 
         NotificationScheduler.cancelReminder(for: itemID)
         if item.reminderDate != nil {
             NotificationScheduler.scheduleReminder(for: item)
         }
         NotificationCenter.default.post(name: .yataDataDidChange, object: nil)
-    }
-
-    // MARK: - Server mirror for notification-action writes
-
-    /// The three notification-action handlers (Mark Done / Snooze 30 /
-    /// Tomorrow) mutate a TodoItem via a standalone ModelContext before
-    /// the app is even fully spun up. In API (client) mode we need to
-    /// mirror that write to the server immediately — otherwise the server
-    /// state diverges from the local cache until the next pull.
-    ///
-    /// In Local mode this is a no-op (apiClient is nil).
-    @MainActor
-    private func logMutation(for item: TodoItem) {
-        guard let client = repositoryProvider?.apiClient else { return }
-        let body = UpdateItemRequest(
-            title: item.title,
-            priority: item.priorityRawValue,
-            isDone: item.isDone,
-            sortOrder: item.sortOrder,
-            reminderDate: item.reminderDate.map { DateFormatters.iso8601DateTime.string(from: $0) },
-            scheduledDate: Self.dateFormatter.string(from: item.scheduledDate),
-            rescheduleCount: item.rescheduleCount
-            // No updatedAt — server is authoritative. Notification-action
-            // mutations were the worst offender for false 409s under the
-            // old design (separate ModelContext, stale `item.updatedAt`).
-            // See docs/conflict_resolution_redesign.md.
-        )
-        let id = item.id
-        Task {
-            // Fire-and-forget: notification actions don't have a UI to show
-            // errors on. A pull on next foreground will catch any drift.
-            do {
-                let _: APITodoItem = try await client.request(.updateItem(id: id, body: body))
-            } catch {
-                // Intentionally swallowed; the item is already saved
-                // locally, and the next /sync pull will reconcile.
-            }
-        }
     }
 }
 

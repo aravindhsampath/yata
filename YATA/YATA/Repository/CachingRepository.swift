@@ -67,6 +67,12 @@ final class CachingRepository: TodoRepository, RepeatingRepository {
         try local.fetchRepeatingItem(by: id)
     }
 
+    func fetchTodoItem(by id: UUID) throws -> TodoItem? {
+        // Reads always come from local cache — no server round-trip
+        // here. The pull-driven sync engine keeps the cache fresh.
+        try local.fetchTodoItem(by: id)
+    }
+
     // MARK: - TodoRepository (writes — local-then-server, rollback on failure)
 
     func add(_ item: TodoItem) async throws {

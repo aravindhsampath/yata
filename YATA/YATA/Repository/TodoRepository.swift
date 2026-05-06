@@ -17,4 +17,11 @@ protocol TodoRepository {
     func fetchTaskCountsByPriority(for dates: [Date]) async throws -> [Date: [Priority: Int]]
     func countDoneItems(for date: Date) async throws -> Int
     func fetchRepeatingItem(by id: UUID) async throws -> RepeatingItem?
+    /// Fetch a single TodoItem by its stable id. Used by paths that
+    /// know the id but don't have a reference to the live model
+    /// object — notably notification-action handlers (`Mark Done`,
+    /// `Snooze 30`, `Tomorrow`) which receive only the id from the
+    /// `userInfo` dictionary. Returns nil if the row has been
+    /// deleted since the notification was scheduled.
+    func fetchTodoItem(by id: UUID) async throws -> TodoItem?
 }
