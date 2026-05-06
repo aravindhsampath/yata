@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
-use tracing_subscriber::EnvFilter;
 use yata_backend::backup;
 use yata_backend::config::Config;
+use yata_backend::observability;
 use yata_backend::password::hash_password;
 
 #[derive(Parser)]
@@ -60,9 +60,8 @@ enum Command {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let format = observability::init();
+    tracing::info!(?format, "tracing initialized");
 
     let cli = Cli::parse();
     let config = Config::from_env();

@@ -1,10 +1,19 @@
+use axum::http::HeaderName;
 use axum::routing::{delete, get, post, put};
 use axum::{Extension, Router};
 use sqlx::SqlitePool;
-use tower_http::trace::TraceLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, RequestId, SetRequestIdLayer};
+use tower_http::trace::{DefaultOnResponse, TraceLayer};
+use tracing::Level;
 
 use crate::config::Config;
 use crate::handlers;
+
+/// Header name used both for the inbound request id (clients can set
+/// it; we mint one if absent) and the outbound response copy. Using a
+/// const rather than re-creating `HeaderName` per request avoids
+/// runtime allocations for what is effectively a static string.
+const X_REQUEST_ID: &str = "x-request-id";
 
 pub fn build_router(pool: SqlitePool, config: Config) -> Router {
     // Public routes (no auth required)
@@ -54,14 +63,51 @@ pub fn build_router(pool: SqlitePool, config: Config) -> Router {
     // The JWT signing key is injected as an Extension<String> for the
     // AuthUser extractor. Config is also injected for handlers that need it.
     let jwt_secret = config.jwt_secret.clone();
+
+    // Layer order is significant. `axum` applies `.layer(L)` calls
+    // outermost-last (the LAST `.layer()` wraps everything). For
+    // request-id propagation to work end-to-end:
+    //
+    //   - `SetRequestIdLayer` must be OUTERMOST so it mints/promotes
+    //     the id into the request before any other layer reads it.
+    //   - `TraceLayer` is in the middle, so its `make_span_with`
+    //     callback sees a request that already has the id.
+    //   - `PropagateRequestIdLayer` must be INNERMOST so on the
+    //     return trip it runs first, copying the id from the
+    //     request to the response header before downstream layers
+    //     could discard it.
+    //
+    // Reading top-to-bottom in source: innermost first, outermost
+    // last. This is the exact reverse of how a `ServiceBuilder` reads.
+    let header_name = HeaderName::from_static(X_REQUEST_ID);
     Router::new()
         .merge(public)
         .merge(protected)
         .layer(Extension(pool))
         .layer(Extension(config))
         .layer(Extension(jwt_secret))
-        // Access logs. Emits a span per request at DEBUG and a summary at
-        // INFO on completion — visible via `RUST_LOG=tower_http=info` in
-        // the systemd unit's EnvironmentFile.
-        .layer(TraceLayer::new_for_http())
+        .layer(PropagateRequestIdLayer::new(header_name.clone()))
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|req: &axum::http::Request<_>| {
+                    // Pull the id out of request extensions, falling
+                    // back to "-" if SetRequestIdLayer hasn't run
+                    // (defensive — shouldn't happen now that it's
+                    // outermost).
+                    let id = req
+                        .extensions()
+                        .get::<RequestId>()
+                        .and_then(|id| id.header_value().to_str().ok())
+                        .unwrap_or("-")
+                        .to_string();
+                    tracing::info_span!(
+                        "http",
+                        method = %req.method(),
+                        uri = %req.uri(),
+                        request_id = %id,
+                    )
+                })
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
+        )
+        .layer(SetRequestIdLayer::new(header_name, MakeRequestUuid))
 }

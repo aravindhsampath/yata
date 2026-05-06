@@ -5,6 +5,7 @@ pub mod db;
 pub mod error;
 pub mod handlers;
 pub mod models;
+pub mod observability;
 pub mod password;
 pub mod routes;
 pub mod time;
