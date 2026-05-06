@@ -6,10 +6,19 @@ use serde::Serialize;
 pub enum AppError {
     Unauthorized,
     NotFound,
-    Conflict(serde_json::Value),
     ValidationError(String),
     Internal(String),
 }
+
+// `Conflict(serde_json::Value)` and the matching `server_version`
+// field used to live here, paired with `is_server_newer` in
+// `time.rs`. They were the optimistic-concurrency check on
+// `updated_at` that produced four separate false-409 bug classes
+// before we dropped it (see YATA/docs/conflict_resolution_redesign.md).
+// Both are deleted now; the schema rule is "server is authoritative
+// on updated_at, client never claims it." If multi-writer ever
+// becomes a real concern, replace with a monotonic-integer version
+// column — none of the wall-clock fragility.
 
 #[derive(Serialize)]
 struct ErrorBody {
@@ -20,36 +29,25 @@ struct ErrorBody {
 struct ErrorDetail {
     code: &'static str,
     message: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    server_version: Option<serde_json::Value>,
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, code, message, server_version) = match self {
+        let (status, code, message) = match self {
             Self::Unauthorized => (
                 StatusCode::UNAUTHORIZED,
                 "unauthorized",
                 "Token invalid or expired".to_string(),
-                None,
             ),
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 "not_found",
                 "Entity does not exist".to_string(),
-                None,
-            ),
-            Self::Conflict(sv) => (
-                StatusCode::CONFLICT,
-                "conflict",
-                "Item was modified on server since your last sync".to_string(),
-                Some(sv),
             ),
             Self::ValidationError(msg) => (
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "validation_error",
                 msg,
-                None,
             ),
             Self::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
@@ -57,17 +55,12 @@ impl IntoResponse for AppError {
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "server_error",
                     "Unexpected failure".to_string(),
-                    None,
                 )
             }
         };
 
         let body = ErrorBody {
-            error: ErrorDetail {
-                code,
-                message,
-                server_version,
-            },
+            error: ErrorDetail { code, message },
         };
 
         (status, axum::Json(body)).into_response()

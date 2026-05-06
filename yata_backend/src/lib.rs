@@ -9,7 +9,10 @@ pub mod observability;
 pub mod password;
 pub mod rate_limit;
 pub mod routes;
-pub mod time;
+// `pub mod time;` removed in P1.11. Its sole inhabitant
+// (`is_server_newer`) was the optimistic-concurrency comparator
+// for `updated_at`; the conflict-detection redesign dropped that
+// entire approach. See YATA/docs/conflict_resolution_redesign.md.
 
 pub mod test_helpers {
     use axum::Router;
