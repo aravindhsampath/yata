@@ -3,6 +3,18 @@ import UserNotifications
 import SwiftData
 import BackgroundTasks
 
+/// Tiny protocol so unit tests can substitute a mock for `BGTask`,
+/// which is `final` and not publicly constructible. We only need the
+/// completion signal — that's enough to verify our dispatch logic
+/// (a real BGTask would also have `expirationHandler`, `identifier`,
+/// etc., but those don't enter the dispatch decision).
+@MainActor
+protocol DispatchableTask: AnyObject {
+    func setTaskCompleted(success: Bool)
+}
+
+extension BGTask: DispatchableTask {}
+
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     var modelContainer: ModelContainer?
     var repositoryProvider: RepositoryProvider?
@@ -35,12 +47,34 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         )
         center.setNotificationCategories([taskCategory])
 
-        // Register background sync task
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.aravindhsampath.yata.sync", using: nil) { task in
-            self.handleBackgroundSync(task: task as! BGAppRefreshTask)
+        // Register background sync task. Goes through `dispatch(task:)`
+        // — which downcasts safely — instead of a force-cast in the
+        // closure body. iOS is *supposed* to deliver a
+        // `BGAppRefreshTask` for this identifier, but if it ever
+        // delivers a sibling (`BGProcessingTask` etc., possibly via a
+        // duplicate-registration bug or a future API change) the
+        // force-cast crashes the app silently in the background. The
+        // user opens YATA and finds a blank state with no clue why.
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.aravindhsampath.yata.sync", using: nil) { [weak self] task in
+            self?.dispatch(task: task)
         }
 
         return true
+    }
+
+    /// Generic entry point from the BGTaskScheduler closure. Tries to
+    /// downcast to `BGAppRefreshTask`; on failure, marks the task as
+    /// not completed (so iOS schedules the next attempt) and returns.
+    /// Generic over `DispatchableTask` so unit tests can inject a
+    /// mock — `BGTask` itself is final and not constructible in tests.
+    func dispatch(task: any DispatchableTask) {
+        if let refreshTask = task as? BGAppRefreshTask {
+            handleBackgroundSync(task: refreshTask)
+            return
+        }
+        // Wrong subclass for our identifier. Don't crash — let iOS
+        // know the task didn't complete so the schedule survives.
+        task.setTaskCompleted(success: false)
     }
 
     // MARK: - Background Sync

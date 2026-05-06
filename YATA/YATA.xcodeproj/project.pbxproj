@@ -53,6 +53,7 @@
 		C10000010000000000000006 /* RequestBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000006 /* RequestBodies.swift */; };
 		C10000010000000000000007 /* ResponseBodies.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000007 /* ResponseBodies.swift */; };
 		C10000010000000000000008 /* EndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000008 /* EndpointTests.swift */; };
+		C10000010000000000000100 /* AppDelegateBGTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000100 /* AppDelegateBGTaskTests.swift */; };
 		C10000010000000000000009 /* DTOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000009 /* DTOTests.swift */; };
 		C10000010000000000000010 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000010 /* APIClientTests.swift */; };
 		C10000010000000000000099 /* LiveServerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000099 /* LiveServerIntegrationTests.swift */; };
@@ -124,6 +125,7 @@
 		C20000010000000000000006 /* RequestBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestBodies.swift; sourceTree = "<group>"; };
 		C20000010000000000000007 /* ResponseBodies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponseBodies.swift; sourceTree = "<group>"; };
 		C20000010000000000000008 /* EndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000100 /* AppDelegateBGTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateBGTaskTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000009 /* DTOTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DTOTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000010 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		C20000010000000000000099 /* LiveServerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveServerIntegrationTests.swift; sourceTree = "<group>"; };
@@ -287,6 +289,7 @@
 				C20000010000000000000010 /* APIClientTests.swift */,
 				C20000010000000000000099 /* LiveServerIntegrationTests.swift */,
 				C20000010000000000000011 /* ModelMigrationTests.swift */,
+				C20000010000000000000100 /* AppDelegateBGTaskTests.swift */,
 			);
 			path = YATATests;
 			sourceTree = "<group>";
@@ -475,6 +478,7 @@
 				C10000010000000000000010 /* APIClientTests.swift in Sources */,
 				C10000010000000000000099 /* LiveServerIntegrationTests.swift in Sources */,
 				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
+				C10000010000000000000100 /* AppDelegateBGTaskTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
