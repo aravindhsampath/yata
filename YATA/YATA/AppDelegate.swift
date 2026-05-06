@@ -19,6 +19,49 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     var modelContainer: ModelContainer?
     var repositoryProvider: RepositoryProvider?
 
+    /// How long a notification-action handler will wait for
+    /// `modelContainer` and `repositoryProvider` to be wired up.
+    ///
+    /// Why this exists: SwiftUI hands us those references from
+    /// `YATAApp.body`'s `.onAppear`, which fires AFTER iOS has
+    /// already delivered any pending `userNotificationCenter(_:didReceive:)`
+    /// from a cold-launch-from-notification tap. The race window
+    /// is small (typically <100ms) but real — pre-fix the handler
+    /// silently bailed, so the user's tap on "Mark Done" did
+    /// nothing.
+    ///
+    /// 5s is generous enough to absorb cold-launch slow paths
+    /// (low memory at launch, big migration) without leaving the
+    /// user staring at a stuck notification.
+    private static let containerWaitTimeoutSeconds: Double = 5
+    /// Internal poll interval for `awaitContainer` — small enough
+    /// that a typical resolution feels instant, large enough that
+    /// the busy loop is cheap.
+    static let containerPollIntervalSeconds: Double = 0.05
+
+    /// Suspend until `modelContainer` and `repositoryProvider` are
+    /// both set, or the timeout elapses. Returns the container on
+    /// success, nil on timeout. Callers should treat nil as "drop
+    /// this action; the foreground sync will reconcile."
+    ///
+    /// `internal` (rather than private) so unit tests can drive it.
+    func awaitContainer(
+        timeoutSeconds: Double = AppDelegate.containerWaitTimeoutSeconds
+    ) async -> ModelContainer? {
+        if let container = modelContainer, repositoryProvider != nil {
+            return container
+        }
+        let pollNs = UInt64(Self.containerPollIntervalSeconds * 1_000_000_000)
+        let deadline = ContinuousClock.now.advanced(by: .seconds(timeoutSeconds))
+        while ContinuousClock.now < deadline {
+            try? await Task.sleep(nanoseconds: pollNs)
+            if let container = modelContainer, repositoryProvider != nil {
+                return container
+            }
+        }
+        return nil
+    }
+
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -154,7 +197,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     @MainActor
     private func handleMarkDone(itemID: UUID) async {
-        guard let container = modelContainer else { return }
+        // Wait for the container to be wired up before we read it.
+        // Cold-launch-from-notification can deliver the action
+        // before YATAApp's onAppear fires; pre-fix this method
+        // silently bailed and the user's tap was lost.
+        guard let container = await awaitContainer() else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
         var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
@@ -188,7 +235,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().add(request)
 
         Task { @MainActor in
-            guard let container = modelContainer else { return }
+            // See `handleMarkDone` — same cold-launch race window.
+            guard let container = await awaitContainer() else { return }
             let context = ModelContext(container)
             let predicate = #Predicate<TodoItem> { $0.id == itemID }
             var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)
@@ -205,7 +253,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     @MainActor
     private func handleTomorrow(itemID: UUID) async {
-        guard let container = modelContainer else { return }
+        // See `handleMarkDone` — same cold-launch race window.
+        guard let container = await awaitContainer() else { return }
         let context = ModelContext(container)
         let predicate = #Predicate<TodoItem> { $0.id == itemID }
         var descriptor = FetchDescriptor<TodoItem>(predicate: predicate)

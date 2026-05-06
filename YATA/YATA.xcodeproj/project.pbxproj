@@ -65,6 +65,7 @@
 		F10000010000000000000010 /* DataStoreLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000010 /* DataStoreLoader.swift */; };
 		A10000010000000000000110 /* DataStoreErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000110 /* DataStoreErrorView.swift */; };
 		C10000010000000000000110 /* DataStoreLoaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000110 /* DataStoreLoaderTests.swift */; };
+		C10000010000000000000111 /* AppDelegateAwaitContainerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000010000000000000111 /* AppDelegateAwaitContainerTests.swift */; };
 		F10000010000000000000002 /* RepositoryProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000010000000000000002 /* RepositoryProvider.swift */; };
 		G10000010000000000000001 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = G20000010000000000000001 /* NetworkMonitor.swift */; };
 /* End PBXBuildFile section */
@@ -140,6 +141,7 @@
 		F20000010000000000000010 /* DataStoreLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStoreLoader.swift; sourceTree = "<group>"; };
 		A20000010000000000000110 /* DataStoreErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStoreErrorView.swift; sourceTree = "<group>"; };
 		C20000010000000000000110 /* DataStoreLoaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataStoreLoaderTests.swift; sourceTree = "<group>"; };
+		C20000010000000000000111 /* AppDelegateAwaitContainerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateAwaitContainerTests.swift; sourceTree = "<group>"; };
 		F20000010000000000000002 /* RepositoryProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProvider.swift; sourceTree = "<group>"; };
 		G20000010000000000000001 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -299,6 +301,7 @@
 				C20000010000000000000011 /* ModelMigrationTests.swift */,
 				C20000010000000000000100 /* AppDelegateBGTaskTests.swift */,
 				C20000010000000000000110 /* DataStoreLoaderTests.swift */,
+				C20000010000000000000111 /* AppDelegateAwaitContainerTests.swift */,
 			);
 			path = YATATests;
 			sourceTree = "<group>";
@@ -491,6 +494,7 @@
 				C10000010000000000000011 /* ModelMigrationTests.swift in Sources */,
 				C10000010000000000000100 /* AppDelegateBGTaskTests.swift in Sources */,
 				C10000010000000000000110 /* DataStoreLoaderTests.swift in Sources */,
+				C10000010000000000000111 /* AppDelegateAwaitContainerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
