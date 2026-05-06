@@ -32,4 +32,10 @@ tower = { version = "0.5", features = ["util"] }
 # so rotation ordering is unambiguous. Std lacks a portable mtime
 # setter — `filetime` is the standard ~20KB shim.
 filetime = "0.2"
+# Used by `tests/e2e_socket.rs` to drive the server through a real
+# TCP listener — proves `axum::serve` is wired with
+# `into_make_service_with_connect_info::<SocketAddr>()` so
+# `SmartIpKeyExtractor` actually finds a peer address. The
+# `oneshot()` path used by other tests bypasses that wiring.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 

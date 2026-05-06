@@ -129,7 +129,20 @@ async fn run_server(pool: SqlitePool, config: Config) {
     tracing::info!("YATA server listening on {addr}");
 
     let listener = TcpListener::bind(&addr).await.expect("failed to bind");
-    axum::serve(listener, app).await.expect("server error");
+    // `into_make_service_with_connect_info::<SocketAddr>` wires the
+    // peer's address into request extensions as `ConnectInfo<SocketAddr>`.
+    // Without it, `tower_governor`'s `SmartIpKeyExtractor` can't find a
+    // peer IP for direct (non-proxied) requests and returns 500
+    // "Unable To Extract Key!" — a smoke-test caught this just before
+    // we were about to ship. Caddy hides the bug in prod by sending
+    // `X-Forwarded-For`, but loopback / dev / future deployments
+    // without an L7 proxy must still work.
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("server error");
 }
 
 async fn cmd_create_user(pool: &SqlitePool, username: &str, password_stdin: bool) {
