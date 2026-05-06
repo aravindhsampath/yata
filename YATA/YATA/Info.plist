@@ -2,11 +2,21 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
+	<!--
+	  Release Info.plist. NSAppTransportSecurity is intentionally
+	  ABSENT — production builds enforce ATS, meaning every API
+	  endpoint the user configures must use HTTPS. The dev-time
+	  override (NSAllowsLocalNetworking) lives in Info-Debug.plist
+	  so a Debug build can talk to local-IP / loopback servers.
+
+	  The build configurations select between the two via
+	  INFOPLIST_FILE in the pbxproj — Debug → Info-Debug.plist,
+	  Release → this file.
+
+	  Anything required at runtime (BGTaskSchedulerPermittedIdentifiers,
+	  future UIAppFonts when the redesign branch lands, etc.) MUST be
+	  duplicated in both plists.
+	-->
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.aravindhsampath.yata.sync</string>

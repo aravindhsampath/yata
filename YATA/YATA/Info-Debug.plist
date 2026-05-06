@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Debug-only Info.plist. The release build (YATA/Info.plist) does
+	  NOT include NSAppTransportSecurity — production traffic must go
+	  to https://yata.aravindh.net (or any other HTTPS server the user
+	  configures). NSAllowsLocalNetworking is kept here purely so
+	  developers can point the simulator at http://localhost:3000 or
+	  http://192.168.x.y:3000 during local development without
+	  fighting ATS.
+
+	  Anything that's required by both configs (BGTaskSchedulerPermittedIdentifiers,
+	  UIAppFonts, etc.) MUST be duplicated between Info.plist and
+	  Info-Debug.plist or it's missing in the build that doesn't
+	  declare it.
+	-->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.aravindhsampath.yata.sync</string>
+	</array>
+</dict>
+</plist>
