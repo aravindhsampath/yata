@@ -1,8 +1,11 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
-use tracing_subscriber::EnvFilter;
+use yata_backend::backup;
 use yata_backend::config::Config;
+use yata_backend::observability;
 use yata_backend::password::hash_password;
 
 #[derive(Parser)]
@@ -38,13 +41,27 @@ enum Command {
         #[arg(long)]
         password_stdin: bool,
     },
+    /// Take a consistent point-in-time snapshot of the database to a
+    /// local-filesystem path. Uses SQLite's `VACUUM INTO` so the live
+    /// server doesn't need to be quiesced. Designed to be invoked
+    /// from a cron / systemd timer; see `deployment/yata-backup.*`.
+    Backup {
+        /// Directory to write the backup into. Created if missing.
+        #[arg(long, default_value = "/var/backups/yata")]
+        output_dir: PathBuf,
+        /// Number of newest backup files to retain after this run.
+        /// Older files in `--output-dir` are deleted. `0` is treated
+        /// as "no rotation, keep everything" — defensive against an
+        /// operator typo wiping the whole backup history.
+        #[arg(long, default_value_t = 14)]
+        keep: usize,
+    },
 }
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
-        .init();
+    let format = observability::init();
+    tracing::info!(?format, "tracing initialized");
 
     let cli = Cli::parse();
     let config = Config::from_env();
@@ -59,6 +76,37 @@ async fn main() {
         Some(Command::DeleteUser { username }) => cmd_delete_user(&pool, &username).await,
         Some(Command::ResetPassword { username, password_stdin }) => {
             cmd_reset_password(&pool, &username, password_stdin).await
+        }
+        Some(Command::Backup { output_dir, keep }) => {
+            cmd_backup(&config.db_path, &output_dir, keep).await
+        }
+    }
+}
+
+async fn cmd_backup(db_path: &str, output_dir: &std::path::Path, keep: usize) {
+    // Conventional name: `yata-YYYYMMDD-HHMMSS.db`. Sortable, unique
+    // at second granularity, and matches the rotation `*.db` filter.
+    let now = chrono::Utc::now();
+    let filename = backup::default_filename(now);
+    let output_path = output_dir.join(&filename);
+
+    match backup::create_backup(db_path, &output_path).await {
+        Ok(bytes) => {
+            println!("backup ok: {} ({} bytes)", output_path.display(), bytes);
+        }
+        Err(e) => {
+            eprintln!("error: backup failed: {e}");
+            std::process::exit(1);
+        }
+    }
+
+    match backup::rotate(output_dir, keep) {
+        Ok(0) => {}
+        Ok(n) => println!("rotated: removed {n} old backup(s), kept {keep} newest"),
+        Err(e) => {
+            // Don't fail the whole command for a rotation hiccup —
+            // the new backup is on disk, which is the primary goal.
+            eprintln!("warning: rotation failed: {e}");
         }
     }
 }
@@ -112,10 +160,15 @@ async fn cmd_create_user(pool: &SqlitePool, username: &str, password_stdin: bool
 
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query("INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
+    // password_changed_at = now ensures a freshly created user can never
+    // receive a token whose iat predates their account. The migration's
+    // epoch default is for back-fill of existing rows; new rows should
+    // always be stamped with an accurate timestamp.
+    sqlx::query("INSERT INTO users (id, username, password_hash, created_at, password_changed_at) VALUES (?, ?, ?, ?, ?)")
         .bind(&id)
         .bind(username)
         .bind(&hash)
+        .bind(&now)
         .bind(&now)
         .execute(pool)
         .await
@@ -184,17 +237,26 @@ async fn cmd_reset_password(pool: &SqlitePool, username: &str, password_stdin: b
         std::process::exit(1);
     });
 
-    sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?")
-        .bind(&hash)
-        .bind(username)
-        .execute(pool)
-        .await
-        .unwrap_or_else(|e| {
-            eprintln!("error: update failed: {e}");
-            std::process::exit(1);
-        });
+    // Also bump password_changed_at to invalidate every existing
+    // token for this user — the logout-all-devices guarantee from
+    // the JWT-revocation redesign (P0.5). A token with iat earlier
+    // than this timestamp will fail the next `verify_token` check
+    // even though it's still cryptographically valid up to its exp.
+    let now = chrono::Utc::now().to_rfc3339();
+    sqlx::query(
+        "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE username = ?",
+    )
+    .bind(&hash)
+    .bind(&now)
+    .bind(username)
+    .execute(pool)
+    .await
+    .unwrap_or_else(|e| {
+        eprintln!("error: update failed: {e}");
+        std::process::exit(1);
+    });
 
-    println!("password updated for user: {username}");
+    println!("password updated for user: {username} (all existing tokens invalidated)");
 }
 
 /// Read a password. With `stdin=true`, reads one trimmed line from stdin —

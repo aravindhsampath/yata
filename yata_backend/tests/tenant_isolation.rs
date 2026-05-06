@@ -18,13 +18,13 @@ const OTHER_PASSWORD: &str = "other-password";
 
 /// Spin up the app with a second tenant already seeded. Returns tokens
 /// for both users.
-async fn two_tenant_app() -> (axum::Router, String, String) {
+async fn two_tenant_app() -> (axum::Router, sqlx::SqlitePool, String, String) {
     let (app, pool) = app().await;
     seed_user(&pool, OTHER_USER_ID, OTHER_USERNAME, OTHER_PASSWORD).await;
 
     let token_a = test_user_token();
     let token_b = token_for(OTHER_USER_ID, OTHER_USERNAME);
-    (app, token_a, token_b)
+    (app, pool, token_a, token_b)
 }
 
 async fn body_json(res: axum::response::Response) -> Value {
@@ -65,7 +65,7 @@ async fn create_item_as(
 
 #[tokio::test]
 async fn user_b_cannot_see_user_a_items_in_list() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     assert_eq!(
         create_item_as(&app, &token_a, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "2026-04-10")
@@ -91,7 +91,7 @@ async fn user_b_cannot_see_user_a_items_in_list() {
 
 #[tokio::test]
 async fn user_b_gets_404_updating_user_a_item() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     let id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1";
     assert_eq!(
@@ -138,7 +138,7 @@ async fn user_b_gets_404_updating_user_a_item() {
 
 #[tokio::test]
 async fn user_b_delete_of_user_a_item_is_silent_noop() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     let id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2";
     assert_eq!(
@@ -171,7 +171,7 @@ async fn user_b_delete_of_user_a_item_is_silent_noop() {
 
 #[tokio::test]
 async fn user_b_mark_done_on_user_a_item_returns_404() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     let id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3";
     assert_eq!(
@@ -196,7 +196,7 @@ async fn user_b_mark_done_on_user_a_item_returns_404() {
 
 #[tokio::test]
 async fn sync_never_returns_other_users_items_or_deletions() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     // User A creates & deletes an item.
     let id_a = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4";
@@ -246,7 +246,7 @@ async fn sync_never_returns_other_users_items_or_deletions() {
 
 #[tokio::test]
 async fn stats_counts_scope_to_user() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     // A has 2 items, B has 1, on the same date.
     for (i, token) in [(0, &token_a), (1, &token_a), (2, &token_b)] {
@@ -302,7 +302,7 @@ async fn stats_counts_scope_to_user() {
 
 #[tokio::test]
 async fn user_b_cannot_see_user_a_repeating_rules() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     let rule_id = "cccccccc-cccc-cccc-cccc-cccccccccccc";
     let res = app
@@ -341,7 +341,7 @@ async fn user_b_cannot_see_user_a_repeating_rules() {
 
 #[tokio::test]
 async fn rollover_only_touches_callers_rows() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     // Both users have an overdue item on 2026-04-01.
     for (i, token) in [(0, &token_a), (1, &token_b)] {
@@ -390,7 +390,7 @@ async fn rollover_only_touches_callers_rows() {
 
 #[tokio::test]
 async fn user_b_reorder_does_not_touch_user_a_items() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     // A and B each create one item in the same lane on the same date.
     let a_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea1";
@@ -433,7 +433,7 @@ async fn user_b_reorder_does_not_touch_user_a_items() {
 
 #[tokio::test]
 async fn user_b_reschedule_on_user_a_item_returns_404() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
     let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea2";
     assert_eq!(create_item_as(&app, &token_a, id, "2026-04-15").await, StatusCode::CREATED);
 
@@ -454,7 +454,7 @@ async fn user_b_reschedule_on_user_a_item_returns_404() {
 
 #[tokio::test]
 async fn user_b_cannot_update_user_a_repeating_rule() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     // User A creates a repeating rule.
     let rule_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea3";
@@ -501,7 +501,7 @@ async fn user_b_cannot_update_user_a_repeating_rule() {
 
 #[tokio::test]
 async fn user_b_cannot_create_with_user_a_item_id_and_sees_422_not_500() {
-    let (app, token_a, token_b) = two_tenant_app().await;
+    let (app, _pool, token_a, token_b) = two_tenant_app().await;
     let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea4";
 
     // User A creates the item.
@@ -549,19 +549,25 @@ async fn user_b_cannot_create_with_user_a_item_id_and_sees_422_not_500() {
 
 #[tokio::test]
 async fn tokens_are_distinct_per_user() {
-    let (_app, token_a, token_b) = two_tenant_app().await;
+    // Two-tenant helper returns the app, two tokens, and (now) the
+    // pool — the pool is needed because verify_token consults the
+    // users table for the password_changed_at revocation cutoff
+    // added in P0.5.
+    let (_app, pool, token_a, token_b) = two_tenant_app().await;
     assert_ne!(token_a, token_b);
-    // Both tokens should still decode with the test jwt secret, and carry
-    // the right user_id.
     let claims_a = yata_backend::auth::verify_token(
         &token_a,
         yata_backend::test_helpers::TEST_JWT_SECRET,
+        &pool,
     )
+    .await
     .unwrap();
     let claims_b = yata_backend::auth::verify_token(
         &token_b,
         yata_backend::test_helpers::TEST_JWT_SECRET,
+        &pool,
     )
+    .await
     .unwrap();
     assert_eq!(claims_a.user_id, TEST_USER_ID);
     assert_eq!(claims_a.username, TEST_USERNAME);

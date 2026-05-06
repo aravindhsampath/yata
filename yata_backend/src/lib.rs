@@ -1,10 +1,13 @@
 pub mod auth;
+pub mod backup;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod handlers;
 pub mod models;
+pub mod observability;
 pub mod password;
+pub mod rate_limit;
 pub mod routes;
 pub mod time;
 
@@ -95,7 +98,15 @@ pub mod test_helpers {
         let mut builder = Request::builder()
             .method(method)
             .uri(uri)
-            .header("content-type", "application/json");
+            .header("content-type", "application/json")
+            // SmartIpKeyExtractor on /auth/token needs *some* IP to
+            // build a rate-limit bucket key — without ConnectInfo
+            // (which axum::oneshot doesn't populate) we'd get a 500.
+            // 127.0.0.1 is the safe loopback default; tests that
+            // care about per-IP behavior (`tests/rate_limit.rs`)
+            // build their own requests with explicit forwarded
+            // addresses.
+            .header("x-forwarded-for", "127.0.0.1");
 
         if let Some(t) = token {
             builder = builder.header("authorization", format!("Bearer {t}"));
