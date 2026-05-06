@@ -19,6 +19,11 @@ argon2 = "0.5"
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
+# Per-IP rate limiting on /auth/token. Argon2 is the only thing
+# standing between a leaked username list and an internet-rate
+# brute-force attack — at 1 hash/50ms an attacker still gets
+# ~500k attempts/day, so we cap login attempts at the layer above.
+tower_governor = "0.7"
 
 [dev-dependencies]
 http-body-util = "0.1"
