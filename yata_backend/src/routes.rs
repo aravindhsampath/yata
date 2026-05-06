@@ -43,8 +43,13 @@ pub fn build_router_with(pool: SqlitePool, config: Config, rate_limit: RateLimit
     );
 
     // Health: cheap, anonymous, never rate-limited (so monitoring
-    // probes don't trip the bucket).
-    let health = Router::new().route("/health", get(handlers::health::health));
+    // probes don't trip the bucket). `/health/db` is the
+    // pool-touching readiness probe (returns 503 on DB failure);
+    // `/version` reports the build identity for operators.
+    let health = Router::new()
+        .route("/health", get(handlers::health::health))
+        .route("/health/db", get(handlers::health::db_health))
+        .route("/version", get(handlers::health::version));
 
     // Auth: rate-limited per IP. Living in its own subrouter so the
     // GovernorLayer applies only to /auth/token, not to /health or

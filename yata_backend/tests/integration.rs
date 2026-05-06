@@ -18,7 +18,10 @@ async fn health_returns_ok() {
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res).await;
     assert_eq!(body["status"], "ok");
-    assert_eq!(body["version"], "1.0.0");
+    // version now comes from CARGO_PKG_VERSION (was hardcoded
+    // "1.0.0" pre-P2.14). Assert presence rather than exact value
+    // so bumping Cargo.toml doesn't churn this test.
+    assert!(body["version"].as_str().unwrap().chars().any(|c| c.is_ascii_digit()));
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
