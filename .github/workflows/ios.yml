@@ -1,0 +1,58 @@
+name: ios
+
+# Triggered on iOS-related changes only — saves macOS runner minutes
+# (the free quota is ~2k/month on private repos and macOS runners
+# burn 10x faster than ubuntu).
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'YATA/**'
+      - '.github/workflows/ios.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'YATA/**'
+      - '.github/workflows/ios.yml'
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pin Xcode
+        # macos-15 ships Xcode 16.x by default but we pin the actual
+        # selected toolchain so a runner image bump doesn't silently
+        # change behavior. If the line below stops resolving, update
+        # to whatever ships current.
+        run: sudo xcode-select -switch /Applications/Xcode_16.0.app || true
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          # Key on the pbxproj hash so structural changes invalidate
+          # the cache; otherwise restore the most recent.
+          key: ${{ runner.os }}-deriveddata-${{ hashFiles('YATA/YATA.xcodeproj/project.pbxproj') }}
+          restore-keys: |
+            ${{ runner.os }}-deriveddata-
+
+      - name: xcodebuild test
+        working-directory: YATA
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme YATA \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -only-testing:YATATests \
+            CODE_SIGNING_ALLOWED=NO \
+            | tail -200

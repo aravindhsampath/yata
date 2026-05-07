@@ -1,0 +1,45 @@
+name: ats-check
+
+# Locks in the P1.10 invariant: the Release Info.plist must NOT
+# contain NSAppTransportSecurity. The two-plist split puts the
+# `NSAllowsLocalNetworking` developer override in Info-Debug.plist
+# only — Release builds enforce ATS.
+#
+# Cheap to run, so we check it on every Info.plist change.
+on:
+  push:
+    paths:
+      - 'YATA/YATA/Info.plist'
+      - 'YATA/YATA/Info-Debug.plist'
+      - '.github/workflows/ats-check.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'YATA/YATA/Info.plist'
+      - 'YATA/YATA/Info-Debug.plist'
+      - '.github/workflows/ats-check.yml'
+
+jobs:
+  ats-release-must-be-locked:
+    # macos-latest because plutil ships there. Cheap (~1m).
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Release Info.plist must not contain NSAppTransportSecurity
+        run: |
+          set -e
+          if plutil -extract NSAppTransportSecurity raw -o - YATA/YATA/Info.plist 2>/dev/null; then
+            echo "::error file=YATA/YATA/Info.plist::NSAppTransportSecurity present in Release Info.plist — P1.10 violation."
+            exit 1
+          fi
+          echo "OK: Release Info.plist has no NSAppTransportSecurity key."
+
+      - name: Debug Info-Debug.plist may contain NSAllowsLocalNetworking (informational)
+        run: |
+          if plutil -extract NSAppTransportSecurity.NSAllowsLocalNetworking raw -o - YATA/YATA/Info-Debug.plist 2>/dev/null; then
+            echo "Debug build allows local networking (expected)."
+          else
+            echo "::warning file=YATA/YATA/Info-Debug.plist::Info-Debug.plist no longer has NSAllowsLocalNetworking — local-IP simulator testing may break."
+          fi

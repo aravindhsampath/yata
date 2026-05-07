@@ -65,14 +65,16 @@ pub mod test_helpers {
     pub async fn seed_user(pool: &SqlitePool, id: &str, username: &str, password: &str) {
         let hash = hash_password(password).expect("hash_password failed in test");
         let now = chrono::Utc::now().to_rfc3339();
-        sqlx::query("INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)")
-            .bind(id)
-            .bind(username)
-            .bind(&hash)
-            .bind(&now)
-            .execute(pool)
-            .await
-            .expect("failed to seed user");
+        sqlx::query(
+            "INSERT INTO users (id, username, password_hash, created_at) VALUES (?, ?, ?, ?)",
+        )
+        .bind(id)
+        .bind(username)
+        .bind(&hash)
+        .bind(&now)
+        .execute(pool)
+        .await
+        .expect("failed to seed user");
     }
 
     /// Mint a JWT for the default test user.

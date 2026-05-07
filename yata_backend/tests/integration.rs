@@ -21,7 +21,13 @@ async fn health_returns_ok() {
     // version now comes from CARGO_PKG_VERSION (was hardcoded
     // "1.0.0" pre-P2.14). Assert presence rather than exact value
     // so bumping Cargo.toml doesn't churn this test.
-    assert!(body["version"].as_str().unwrap().chars().any(|c| c.is_ascii_digit()));
+    assert!(
+        body["version"]
+            .as_str()
+            .unwrap()
+            .chars()
+            .any(|c| c.is_ascii_digit())
+    );
 }
 
 // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -209,7 +215,11 @@ async fn update_item_accepts_stale_updated_at() {
             ))
             .await
             .unwrap();
-        assert_eq!(res.status(), StatusCode::OK, "stale updated_at must not 409");
+        assert_eq!(
+            res.status(),
+            StatusCode::OK,
+            "stale updated_at must not 409"
+        );
     }
 }
 

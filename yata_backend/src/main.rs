@@ -69,14 +69,16 @@ async fn main() {
 
     match cli.command {
         None => run_server(pool, config).await,
-        Some(Command::CreateUser { username, password_stdin }) => {
-            cmd_create_user(&pool, &username, password_stdin).await
-        }
+        Some(Command::CreateUser {
+            username,
+            password_stdin,
+        }) => cmd_create_user(&pool, &username, password_stdin).await,
         Some(Command::ListUsers) => cmd_list_users(&pool).await,
         Some(Command::DeleteUser { username }) => cmd_delete_user(&pool, &username).await,
-        Some(Command::ResetPassword { username, password_stdin }) => {
-            cmd_reset_password(&pool, &username, password_stdin).await
-        }
+        Some(Command::ResetPassword {
+            username,
+            password_stdin,
+        }) => cmd_reset_password(&pool, &username, password_stdin).await,
         Some(Command::Backup { output_dir, keep }) => {
             cmd_backup(&config.db_path, &output_dir, keep).await
         }
@@ -256,18 +258,16 @@ async fn cmd_reset_password(pool: &SqlitePool, username: &str, password_stdin: b
     // than this timestamp will fail the next `verify_token` check
     // even though it's still cryptographically valid up to its exp.
     let now = chrono::Utc::now().to_rfc3339();
-    sqlx::query(
-        "UPDATE users SET password_hash = ?, password_changed_at = ? WHERE username = ?",
-    )
-    .bind(&hash)
-    .bind(&now)
-    .bind(username)
-    .execute(pool)
-    .await
-    .unwrap_or_else(|e| {
-        eprintln!("error: update failed: {e}");
-        std::process::exit(1);
-    });
+    sqlx::query("UPDATE users SET password_hash = ?, password_changed_at = ? WHERE username = ?")
+        .bind(&hash)
+        .bind(&now)
+        .bind(username)
+        .execute(pool)
+        .await
+        .unwrap_or_else(|e| {
+            eprintln!("error: update failed: {e}");
+            std::process::exit(1);
+        });
 
     println!("password updated for user: {username} (all existing tokens invalidated)");
 }
@@ -279,11 +279,17 @@ fn read_password(stdin: bool) -> String {
     if stdin {
         use std::io::BufRead;
         let mut line = String::new();
-        std::io::stdin().lock().read_line(&mut line).unwrap_or_else(|e| {
-            eprintln!("error: stdin read failed: {e}");
-            std::process::exit(1);
-        });
-        let trimmed = line.trim_end_matches('\n').trim_end_matches('\r').to_string();
+        std::io::stdin()
+            .lock()
+            .read_line(&mut line)
+            .unwrap_or_else(|e| {
+                eprintln!("error: stdin read failed: {e}");
+                std::process::exit(1);
+            });
+        let trimmed = line
+            .trim_end_matches('\n')
+            .trim_end_matches('\r')
+            .to_string();
         if trimmed.len() < 8 {
             eprintln!("error: password must be at least 8 characters");
             std::process::exit(1);

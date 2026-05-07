@@ -139,11 +139,12 @@ pub async fn delete_repeating(
     // gone, tombstones partially written" (clients resurrect on pull).
     let mut tx = pool.begin().await?;
 
-    let result = sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE")
-        .bind(&auth.user_id)
-        .bind(&id)
-        .execute(&mut *tx)
-        .await?;
+    let result =
+        sqlx::query("DELETE FROM repeating_items WHERE user_id = ? AND id = ? COLLATE NOCASE")
+            .bind(&auth.user_id)
+            .bind(&id)
+            .execute(&mut *tx)
+            .await?;
 
     if result.rows_affected() == 0 {
         tx.commit().await?;

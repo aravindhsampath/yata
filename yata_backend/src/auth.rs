@@ -91,12 +91,11 @@ pub async fn verify_token(
     // NOCASE on the user_id matcher to match the rest of the
     // codebase (Swift sends uppercase UUIDs, Rust stores
     // lowercase).
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT password_changed_at FROM users WHERE id = ? COLLATE NOCASE",
-    )
-    .bind(&claims.user_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT password_changed_at FROM users WHERE id = ? COLLATE NOCASE")
+            .bind(&claims.user_id)
+            .fetch_optional(pool)
+            .await?;
 
     let Some((pw_changed,)) = row else {
         // The user this token references no longer exists (deleted

@@ -91,12 +91,7 @@ async fn protected_endpoint_returns_401_after_password_change() {
     // Smoke: GET /items succeeds before the password change.
     let res = app
         .clone()
-        .oneshot(auth_request(
-            "GET",
-            "/items?date=2026-04-23",
-            None,
-            &token,
-        ))
+        .oneshot(auth_request("GET", "/items?date=2026-04-23", None, &token))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
@@ -113,12 +108,7 @@ async fn protected_endpoint_returns_401_after_password_change() {
 
     let res = app
         .clone()
-        .oneshot(auth_request(
-            "GET",
-            "/items?date=2026-04-23",
-            None,
-            &token,
-        ))
+        .oneshot(auth_request("GET", "/items?date=2026-04-23", None, &token))
         .await
         .unwrap();
     assert_eq!(
@@ -247,8 +237,5 @@ async fn bump_password_changed_at_helper_invalidates_tokens() {
     let err = verify_token(&token, TEST_JWT_SECRET, &pool)
         .await
         .expect_err("token should be invalidated after helper");
-    assert!(matches!(
-        err,
-        yata_backend::error::AppError::Unauthorized
-    ));
+    assert!(matches!(err, yata_backend::error::AppError::Unauthorized));
 }

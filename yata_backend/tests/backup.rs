@@ -189,7 +189,10 @@ async fn rotation_keeps_only_n_newest_by_mtime() {
 
     // Confirm the 3 newest survived.
     for name in &names[2..] {
-        assert!(dir.join(name).exists(), "{name} should have survived rotation");
+        assert!(
+            dir.join(name).exists(),
+            "{name} should have survived rotation"
+        );
     }
     for name in &names[..2] {
         assert!(!dir.join(name).exists(), "{name} should have been deleted");

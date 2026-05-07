@@ -44,11 +44,9 @@ impl IntoResponse for AppError {
                 "not_found",
                 "Entity does not exist".to_string(),
             ),
-            Self::ValidationError(msg) => (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "validation_error",
-                msg,
-            ),
+            Self::ValidationError(msg) => {
+                (StatusCode::UNPROCESSABLE_ENTITY, "validation_error", msg)
+            }
             Self::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
                 (

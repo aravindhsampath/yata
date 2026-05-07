@@ -71,10 +71,7 @@ impl From<io::Error> for BackupError {
 ///
 /// Refuses to overwrite an existing output file — callers must name
 /// new backups uniquely (timestamp etc.).
-pub async fn create_backup(
-    source_db_path: &str,
-    output_path: &Path,
-) -> Result<u64, BackupError> {
+pub async fn create_backup(source_db_path: &str, output_path: &Path) -> Result<u64, BackupError> {
     let source = Path::new(source_db_path);
     if source_db_path != ":memory:" && !source.exists() {
         return Err(BackupError::SourceMissing(source.to_path_buf()));
@@ -82,10 +79,10 @@ pub async fn create_backup(
     if output_path.exists() {
         return Err(BackupError::OutputExists(output_path.to_path_buf()));
     }
-    if let Some(parent) = output_path.parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)?;
-        }
+    if let Some(parent) = output_path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
     }
 
     // Open source read-only. RW would touch the WAL header and could

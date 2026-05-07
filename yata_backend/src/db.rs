@@ -2,9 +2,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use sqlx::SqlitePool;
-use sqlx::sqlite::{
-    SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous,
-};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
 
 /// Build the canonical [`SqliteConnectOptions`] for a YATA database
 /// connection. Used by both the production pool and any test helper

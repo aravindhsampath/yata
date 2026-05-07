@@ -63,12 +63,11 @@ pub async fn materialize(
     let end = NaiveDate::parse_from_str(&body.end_date, "%Y-%m-%d")
         .map_err(|_| AppError::ValidationError("invalid end_date format".to_string()))?;
 
-    let rules = sqlx::query_as::<_, RepeatingItem>(
-        "SELECT * FROM repeating_items WHERE user_id = ?",
-    )
-    .bind(&auth.user_id)
-    .fetch_all(&pool)
-    .await?;
+    let rules =
+        sqlx::query_as::<_, RepeatingItem>("SELECT * FROM repeating_items WHERE user_id = ?")
+            .bind(&auth.user_id)
+            .fetch_all(&pool)
+            .await?;
 
     let mut created_count: i64 = 0;
 

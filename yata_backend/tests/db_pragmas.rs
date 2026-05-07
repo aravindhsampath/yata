@@ -34,9 +34,7 @@ fn cleanup(path: &std::path::Path) {
     for suffix in ["", "-wal", "-shm"] {
         let p = path.with_extension(format!(
             "{}{suffix}",
-            path.extension()
-                .and_then(|s| s.to_str())
-                .unwrap_or("db")
+            path.extension().and_then(|s| s.to_str()).unwrap_or("db")
         ));
         let _ = std::fs::remove_file(&p);
     }

@@ -33,12 +33,7 @@ async fn body_json(res: axum::response::Response) -> Value {
 }
 
 /// Helper: user A creates an item and returns its id.
-async fn create_item_as(
-    app: &axum::Router,
-    token: &str,
-    id: &str,
-    date: &str,
-) -> StatusCode {
+async fn create_item_as(app: &axum::Router, token: &str, id: &str, date: &str) -> StatusCode {
     let res = app
         .clone()
         .oneshot(auth_request(
@@ -68,8 +63,13 @@ async fn user_b_cannot_see_user_a_items_in_list() {
     let (app, _pool, token_a, token_b) = two_tenant_app().await;
 
     assert_eq!(
-        create_item_as(&app, &token_a, "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "2026-04-10")
-            .await,
+        create_item_as(
+            &app,
+            &token_a,
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "2026-04-10"
+        )
+        .await,
         StatusCode::CREATED
     );
 
@@ -149,7 +149,12 @@ async fn user_b_delete_of_user_a_item_is_silent_noop() {
     // User B DELETE — idempotent 204, but user A's row must remain.
     let res = app
         .clone()
-        .oneshot(auth_request("DELETE", &format!("/items/{id}"), None, &token_b))
+        .oneshot(auth_request(
+            "DELETE",
+            &format!("/items/{id}"),
+            None,
+            &token_b,
+        ))
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::NO_CONTENT);
@@ -365,7 +370,10 @@ async fn rollover_only_touches_callers_rows() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
     let body = body_json(res).await;
-    assert_eq!(body["rolled_over_count"], 1, "A should roll over only their one item");
+    assert_eq!(
+        body["rolled_over_count"], 1,
+        "A should roll over only their one item"
+    );
 
     // User B's item is still on the old date.
     let res = app
@@ -395,8 +403,14 @@ async fn user_b_reorder_does_not_touch_user_a_items() {
     // A and B each create one item in the same lane on the same date.
     let a_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea1";
     let b_id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeb1";
-    assert_eq!(create_item_as(&app, &token_a, a_id, "2026-04-15").await, StatusCode::CREATED);
-    assert_eq!(create_item_as(&app, &token_b, b_id, "2026-04-15").await, StatusCode::CREATED);
+    assert_eq!(
+        create_item_as(&app, &token_a, a_id, "2026-04-15").await,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        create_item_as(&app, &token_b, b_id, "2026-04-15").await,
+        StatusCode::CREATED
+    );
 
     // User B reorders THEIR lane, accidentally including user A's id.
     // The server must silently ignore the foreign id (WHERE user_id = ?
@@ -420,13 +434,21 @@ async fn user_b_reorder_does_not_touch_user_a_items() {
     // User A's item is untouched.
     let res = app
         .clone()
-        .oneshot(auth_request("GET", "/items?date=2026-04-15&priority=2", None, &token_a))
+        .oneshot(auth_request(
+            "GET",
+            "/items?date=2026-04-15&priority=2",
+            None,
+            &token_a,
+        ))
         .await
         .unwrap();
     let body = body_json(res).await;
     let items = body["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
-    assert_eq!(items[0]["sort_order"], 0, "user A's sort_order was mutated by user B's reorder");
+    assert_eq!(
+        items[0]["sort_order"], 0,
+        "user A's sort_order was mutated by user B's reorder"
+    );
 }
 
 // ─── Reschedule isolation ─────────────────────────────────────────────────
@@ -435,7 +457,10 @@ async fn user_b_reorder_does_not_touch_user_a_items() {
 async fn user_b_reschedule_on_user_a_item_returns_404() {
     let (app, _pool, token_a, token_b) = two_tenant_app().await;
     let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea2";
-    assert_eq!(create_item_as(&app, &token_a, id, "2026-04-15").await, StatusCode::CREATED);
+    assert_eq!(
+        create_item_as(&app, &token_a, id, "2026-04-15").await,
+        StatusCode::CREATED
+    );
 
     let res = app
         .clone()
@@ -505,7 +530,10 @@ async fn user_b_cannot_create_with_user_a_item_id_and_sees_422_not_500() {
     let id = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea4";
 
     // User A creates the item.
-    assert_eq!(create_item_as(&app, &token_a, id, "2026-04-15").await, StatusCode::CREATED);
+    assert_eq!(
+        create_item_as(&app, &token_a, id, "2026-04-15").await,
+        StatusCode::CREATED
+    );
 
     // User B tries to POST /items with the same id — would hit a UNIQUE
     // constraint violation. The server must NOT return 500 (leaks that
@@ -536,7 +564,12 @@ async fn user_b_cannot_create_with_user_a_item_id_and_sees_422_not_500() {
     // User A's item is unchanged.
     let res = app
         .clone()
-        .oneshot(auth_request("GET", "/items?date=2026-04-15&priority=2", None, &token_a))
+        .oneshot(auth_request(
+            "GET",
+            "/items?date=2026-04-15&priority=2",
+            None,
+            &token_a,
+        ))
         .await
         .unwrap();
     let body = body_json(res).await;

@@ -1,0 +1,63 @@
+name: backend
+
+# Runs on every push and on PRs targeting main. Branch protection
+# (configured in GitHub UI) is what actually blocks merges; this
+# workflow's job is to surface red status checks.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'yata_backend/**'
+      - 'Cargo.lock'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'yata_backend/**'
+      - 'Cargo.lock'
+      - '.github/workflows/backend.yml'
+
+# Cancel in-flight runs on the same ref when a new push lands. Saves
+# minutes on noisy branches.
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          # Cargo.toml requires edition = "2024", which needs >= 1.85.
+          # `stable` is fine on GitHub-hosted runners (they ship a
+          # current toolchain) but we pin clippy + rustfmt explicitly.
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry & target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          # Bust the cache when Cargo.lock or rust-toolchain change.
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: cargo fmt --check
+        working-directory: yata_backend
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: yata_backend
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test
+        working-directory: yata_backend
+        run: cargo test --all-targets
