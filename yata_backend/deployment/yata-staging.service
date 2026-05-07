@@ -1,0 +1,47 @@
+[Unit]
+Description=YATA backend (staging — same box, separate DB and port)
+After=network-online.target
+Wants=network-online.target
+
+# Staging is intentionally NOT marked Requires=yata.service so it
+# can run independently when prod is stopped (e.g. testing a
+# breaking migration).
+[Service]
+Type=simple
+User=yata
+Group=yata
+WorkingDirectory=/var/lib/yata-staging
+# Separate env file so YATA_DB_PATH, YATA_PORT, and YATA_JWT_SECRET
+# are independent from prod. Sample at /etc/yata/yata-staging.env:
+#
+#   YATA_JWT_SECRET=<openssl rand -hex 32, NOT shared with prod>
+#   YATA_DB_PATH=/var/lib/yata-staging/yata.db
+#   YATA_PORT=3001
+#
+# Use a separate JWT secret so a stolen staging token can never
+# decode against prod (and vice versa).
+EnvironmentFile=/etc/yata/yata-staging.env
+ExecStart=/usr/local/bin/yata_backend
+Restart=on-failure
+RestartSec=2
+
+# Same hardening as prod — only the staging DB directory is
+# writable. /var/lib/yata (prod) is read-only from this unit's
+# perspective, so a staging-side bug can never corrupt prod data.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yata-staging
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=yata-staging
+
+[Install]
+WantedBy=multi-user.target

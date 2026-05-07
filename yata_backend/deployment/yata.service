@@ -1,0 +1,38 @@
+[Unit]
+Description=YATA backend (production)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=yata
+Group=yata
+WorkingDirectory=/var/lib/yata
+EnvironmentFile=/etc/yata/yata.env
+ExecStart=/usr/local/bin/yata_backend
+Restart=on-failure
+RestartSec=2
+
+# Hardening — service only needs the DB directory writable. `/etc`,
+# `/usr`, and the rest of the filesystem stay read-only. Lock down
+# net access we don't use; the only egress is to journald.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/yata
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+
+# JSON logging is configured via tracing-subscriber inside the
+# binary; journald gets one structured line per request thanks to
+# tower-http's TraceLayer (P0.3).
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=yata
+
+[Install]
+WantedBy=multi-user.target

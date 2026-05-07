@@ -1,0 +1,38 @@
+# Caddy configuration fragment for the staging YATA instance.
+# Drop into /etc/caddy/Caddyfile alongside the prod block, or
+# `import` from the main file. Caddy auto-provisions the TLS cert
+# from Let's Encrypt — DNS for staging.yata.aravindh.net must point
+# at the same box as the prod hostname.
+
+staging.yata.aravindh.net {
+    encode zstd gzip
+
+    # Reverse-proxy to the staging systemd unit (port 3001 by
+    # convention; the unit's EnvironmentFile sets YATA_PORT). Prod
+    # listens on 3000 and is configured in the sibling block.
+    reverse_proxy 127.0.0.1:3001 {
+        # Forward the real client IP so SmartIpKeyExtractor can
+        # build a per-client rate-limit bucket. Caddy already
+        # populates X-Forwarded-For; this is belt-and-suspenders.
+        header_up X-Real-IP {remote_host}
+    }
+
+    # Tighten browser-side defaults. Staging is not a public site,
+    # but we mirror prod headers so the staging deploy is a faithful
+    # rehearsal.
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "no-referrer"
+    }
+
+    log {
+        # Send to a separate access log so staging traffic doesn't
+        # noise up the prod log. journald is fine if you'd rather
+        # use that — adjust to taste.
+        output file /var/log/caddy/yata-staging.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+    }
+}
