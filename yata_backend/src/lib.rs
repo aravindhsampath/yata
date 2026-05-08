@@ -1,3 +1,4 @@
+pub mod admin_stats;
 pub mod auth;
 pub mod backup;
 pub mod config;

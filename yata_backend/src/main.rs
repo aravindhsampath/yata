@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
 use tokio::net::TcpListener;
+use yata_backend::admin_stats::{compute_stats, format_stats_table};
 use yata_backend::backup;
 use yata_backend::config::Config;
 use yata_backend::observability;
@@ -56,6 +57,10 @@ enum Command {
         #[arg(long, default_value_t = 14)]
         keep: usize,
     },
+    /// Print per-user activity counts (open/done items, repeating
+    /// rules, last activity). Useful for spotting dormant tenants
+    /// or confirming a deploy didn't regress somebody's data.
+    Stats,
 }
 
 #[tokio::main]
@@ -81,6 +86,17 @@ async fn main() {
         }) => cmd_reset_password(&pool, &username, password_stdin).await,
         Some(Command::Backup { output_dir, keep }) => {
             cmd_backup(&config.db_path, &output_dir, keep).await
+        }
+        Some(Command::Stats) => cmd_stats(&pool).await,
+    }
+}
+
+async fn cmd_stats(pool: &SqlitePool) {
+    match compute_stats(pool).await {
+        Ok(stats) => print!("{}", format_stats_table(&stats)),
+        Err(e) => {
+            eprintln!("error: stats query failed: {e}");
+            std::process::exit(1);
         }
     }
 }
