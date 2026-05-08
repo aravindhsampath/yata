@@ -188,7 +188,41 @@ On the iPhone:
 ```sh
 curl -s https://yata.example.com/health
 # → {"status":"ok","version":"1.0.0"}
+curl -s https://yata.example.com/health/db
+# → {"status":"ok"}     (or 503 + "degraded" if the pool is unhealthy)
+curl -s https://yata.example.com/version
+# → {"git_sha":"…","built_at_epoch":"…","version":"…"}
 ```
+
+## Password hashing
+
+User passwords are hashed with **Argon2id** via the `argon2 = "0.5"`
+crate. Parameters come from `Argon2::default()`:
+
+| Parameter | Value | Purpose |
+|---|---|---|
+| `m` (memory) | 19_456 KiB (~19 MiB) | Memory hardness — defeats GPU/ASIC attacks |
+| `t` (time)   | 2 iterations          | CPU cost per hash |
+| `p` (lanes)  | 1                     | Single-threaded verify on small VPS hardware |
+| salt         | 16 random bytes       | Per-hash, generated via `OsRng` |
+| output       | 32 bytes              | Standard PHC encoding |
+
+These are the [OWASP 2024 Password Storage Cheat Sheet][owasp]
+"second recommended option" — adequate for personal-scale
+deployments with verify latency <100 ms on a single core.
+
+When to revisit: bench `verify_password` on the prod box. If it
+completes in significantly under 50 ms, bump to `m = 64 MiB`,
+`t = 3` (the OWASP "first option"). No migration needed — existing
+hashes carry their parameters in the encoded string, so old hashes
+still verify cleanly even after new ones use stronger params.
+
+[owasp]: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html
+
+The login path also runs a constant-time *dummy* verify on unknown
+usernames so the response time for "user doesn't exist" is
+indistinguishable from "password wrong" — defeats username
+enumeration via timing.
 
 ## Backups
 
